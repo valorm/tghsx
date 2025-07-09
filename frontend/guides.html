@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guides - tGHSX Protocol</title>
+    <link rel="icon" href="favicon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .logo-img {
+            height: 50px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Section -->
+    <header class="header container">
+        <a href="index.html" class="logo">
+            <img src="logo.png" alt="tGHSX Logo" class="logo-img">
+        </a>
+        <nav class="main-nav">
+             <a href="index.html#features">Features</a>
+             <a href="index.html#how-it-works">How It Works</a>
+             <a href="governance.html">Governance</a>
+             <a href="security.html">Security</a>
+             <a href="guides.html">Guides</a>
+        </nav>
+        <a href="auth.html" class="btn btn-launch">
+            <i class="fas fa-rocket"></i> Launch App
+        </a>
+    </header>
+
+    <main class="container">
+        <!-- Page Title and Subtitle -->
+        <h1 class="page-title">User Guides</h1>
+        <p class="page-subtitle">Your step-by-step instructions for interacting with the tGHSX protocol on the Amoy testnet.</p>
+
+        <!-- Prerequisites Guide -->
+        <div class="guide-section">
+            <h2><i class="fas fa-rocket"></i> Getting Started: Prerequisites</h2>
+            <p>Before you begin, please ensure you have the following set up:</p>
+            <ol>
+                <li><strong>MetaMask Wallet:</strong> A web3 wallet like <a href="https://metamask.io/" target="_blank" rel="noopener noreferrer">MetaMask</a> installed in your browser.</li>
+                <li><strong>Amoy Testnet Configured:</strong> Your MetaMask wallet must be connected to the Polygon Amoy testnet.</li>
+                <li><strong>Amoy ETH:</strong> You need Amoy ETH to pay for gas fees. You can get some from a public <a href="https://faucet.polygon.technology/" target="_blank" rel="noopener noreferrer">Amoy faucet</a>.</li>
+            </ol>
+        </div>
+
+        <!-- Connecting Guide -->
+        <div class="guide-section">
+            <h2><i class="fas fa-wallet"></i> Guide 1: Connecting Your Wallet</h2>
+            <ol>
+                <li>Navigate to the <a href="auth.html" class="code-link">Launch App</a> page.</li>
+                <li>In the top-right corner of the application, click the <strong class="code">Connect Wallet</strong> button.</li>
+                <li>MetaMask will prompt you to connect your account. Approve the connection.</li>
+                <li>Once connected, the button will display your wallet address, and your Amoy ETH balance will appear in the dashboard.</li>
+            </ol>
+        </div>
+
+        <!-- Minting Guide -->
+        <div class="guide-section">
+            <h2><i class="fas fa-coins"></i> Guide 2: Depositing Collateral & Borrowing tGHSX</h2>
+            <p>Borrowing tGHSX is a single, efficient transaction where you deposit ETH and borrow tGHSX simultaneously.</p>
+            <ol>
+                <li>On the dashboard, locate the <strong>"Borrow tGHSX"</strong> card.</li>
+                <li>In the <strong class="code">Deposit ETH</strong> field, enter the amount of ETH you wish to use as collateral.</li>
+                <li>In the <strong class="code">Borrow tGHSX</strong> field, enter the amount of tGHSX stablecoins you want to borrow.</li>
+                <li>Observe the <strong class="code">Collateralization Ratio</strong> display. To proceed, this ratio must be above the <strong>150% minimum</strong>. A higher ratio is safer and reduces your risk of liquidation.</li>
+                <li>Click the <strong class="code">Deposit & Borrow</strong> button.</li>
+                <li>MetaMask will ask you to approve the on-chain transaction. Confirm it to complete the process.</li>
+            </ol>
+            <div class="info-box">
+                <p><i class="fas fa-info-circle"></i> <strong>What happens next?</strong> Once your transaction is confirmed on the blockchain, the tGHSX tokens are minted directly to your wallet, and your vault position (collateral and debt) will appear in the "Your Vault" card.</p>
+            </div>
+        </div>
+
+        <!-- Vault Management Guide -->
+        <div class="guide-section">
+            <h2><i class="fas fa-tachometer-alt"></i> Guide 3: Managing Your Vault</h2>
+            <p>The <strong>"Your Vault"</strong> card gives you a complete, real-time overview of your position's health.</p>
+            <h3>Understanding Your Position</h3>
+            <ul>
+                <li><strong>Collateral (ETH):</strong> The total amount of ETH you have locked in the vault.</li>
+                <li><strong>Debt (tGHSX):</strong> The total amount of tGHSX you have borrowed and need to repay.</li>
+                <li><strong>Collateral Ratio:</strong> The health of your vault. If this falls below 140%, your vault is at risk of liquidation.</li>
+                <li><strong>Liquidation Price:</strong> The ETH price at which your vault will become eligible for liquidation. Keep an eye on this!</li>
+            </ul>
+            <h3>Repaying Debt and Withdrawing Collateral</h3>
+            <ol>
+                <li>In the "Your Vault" card, use the <strong class="code">Repay & Withdraw</strong> section.</li>
+                <li>To repay your loan, enter an amount in the <strong class="code">Repay tGHSX</strong> field. You can click <strong class="code">MAX</strong> to repay your entire debt.</li>
+                <li>To get your collateral back, enter an amount in the <strong class="code">Withdraw ETH</strong> field. You can only withdraw collateral if your resulting collateralization ratio remains above the 150% minimum.</li>
+                <li>Click the <strong class="code">Repay & Withdraw</strong> button and approve the transaction in MetaMask.</li>
+            </ol>
+        </div>
+
+    </main>
+    <script src="script/script.js" defer></script>
+</body>
+</html>
