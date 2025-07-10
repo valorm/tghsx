@@ -1,6 +1,6 @@
 # tGHSX Protocol
 
-![tGHSX Logo](app/logo.png)
+![tGHSX Logo](/frontend/logo.png)
 
 **The Synthetic Ghanaian Cedi, backed by Crypto.**
 
