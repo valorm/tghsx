@@ -8,6 +8,7 @@
  * - User authentication state (login/logout).
  * - Shared utility functions (toasts, formatting).
  * - Protocol status polling.
+ * - Mobile navigation logic.
  * ==================================================================================
  */
 
@@ -319,12 +320,20 @@ function initializeApp() {
     setInterval(fetchProtocolStatus, 60000);
 
     // --- Mobile Navigation Logic ---
-    const menuIcon = document.querySelector('.menu-icon');
-    const navUl = document.querySelector('nav ul');
+    const menuToggle = document.getElementById('menu-toggle');
+    const navMenu = document.getElementById('nav-menu');
 
-    if (menuIcon && navUl) {
-        menuIcon.addEventListener('click', () => {
-            navUl.classList.toggle('active');
+    if (menuToggle && navMenu) {
+        menuToggle.addEventListener('click', () => {
+            navMenu.classList.toggle('active');
+            const icon = menuToggle.querySelector('i');
+            if (navMenu.classList.contains('active')) {
+                icon.classList.remove('fa-bars');
+                icon.classList.add('fa-times');
+            } else {
+                icon.classList.remove('fa-times');
+                icon.classList.add('fa-bars');
+            }
         });
     }
 }
