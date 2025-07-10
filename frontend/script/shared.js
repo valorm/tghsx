@@ -12,7 +12,7 @@ const app = {
     // Shared state for the entire application
     state: {
         // Constants
-        BACKEND_URL: 'https://tghsx.onrender.com',
+        BACKEND_URL: 'http://127.0.0.1:8000',
         ADMIN_USER_ID: "d50bb916-fa10-4a8e-8bff-bc76820901eb",
         NETWORKS: {
             31337: 'Localhost (Hardhat)',

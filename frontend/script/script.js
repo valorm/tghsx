@@ -8,7 +8,7 @@
  */
 
 // Global configuration for the backend API URL.
-const BACKEND_URL = 'https://tghsx.onrender.com';
+const BACKEND_URL = 'http://127.0.0.1:8000';
 
 /**
  * Formats a numerical value into a compact currency string (e.g., 1.2M, 15.5K, 123.45).
