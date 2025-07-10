@@ -158,12 +158,12 @@ function renderTablePage() {
         const row = document.createElement('tr');
         const badgeClass = getMethodBadgeClass(tx.method);
         row.innerHTML = `
-            <td><a href="https://amoy.polygonscan.com/tx/${tx.fullHash}" target="_blank" class="hash-link" title="${tx.fullHash}">${tx.hash}</a></td>
-            <td><span class="method-badge ${badgeClass}">${tx.method}</span></td>
-            <td>${new Date(tx.datetime).toLocaleString()}</td>
-            <td>${tx.from}</td>
-            <td><span class="direction-indicator ${tx.direction.toLowerCase()}">${tx.direction}</span> ${tx.to}</td>
-            <td class="${tx.value >= 0 ? 'amount-positive' : 'amount-negative'}">${tx.amount}</td>
+            <td data-label="Tx Hash"><a href="https://amoy.polygonscan.com/tx/${tx.fullHash}" target="_blank" class="hash-link" title="${tx.fullHash}">${tx.hash}</a></td>
+            <td data-label="Method"><span class="method-badge ${badgeClass}">${tx.method}</span></td>
+            <td data-label="Date & Time">${new Date(tx.datetime).toLocaleString()}</td>
+            <td data-label="From">${tx.from}</td>
+            <td data-label="To"><span class="direction-indicator ${tx.direction.toLowerCase()}">${tx.direction}</span> ${tx.to}</td>
+            <td data-label="Amount" class="${tx.value >= 0 ? 'amount-positive' : 'amount-negative'}">${tx.amount}</td>
         `;
         elements.tableBody.appendChild(row);
     });

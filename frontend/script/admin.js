@@ -135,12 +135,12 @@ async function fetchPendingRequests() {
             requests.forEach(req => {
                 const row = tableBody.insertRow();
                 row.innerHTML = `
-                    <td><span class="tooltip" title="${new Date(req.created_at).toLocaleString()}">${timeAgo(req.created_at)}</span></td>
-                    <td><span class="tooltip address" title="${req.user_id}">${truncate(req.user_id)}</span></td>
-                    <td>${formatNumber(req.collateral_amount)}</td>
-                    <td>${formatNumber(req.mint_amount)}</td>
-                    <td>${parseFloat(req.collateral_ratio).toFixed(2)}%</td>
-                    <td>
+                    <td data-label="Submitted"><span class="tooltip" title="${new Date(req.created_at).toLocaleString()}">${timeAgo(req.created_at)}</span></td>
+                    <td data-label="User ID"><span class="tooltip address" title="${req.user_id}">${truncate(req.user_id)}</span></td>
+                    <td data-label="Collateral (ETH)">${formatNumber(req.collateral_amount)}</td>
+                    <td data-label="Mint Amount (tGHSX)">${formatNumber(req.mint_amount)}</td>
+                    <td data-label="Ratio (%)">${parseFloat(req.collateral_ratio).toFixed(2)}%</td>
+                    <td data-label="Actions">
                         <button class="btn btn-action btn-approve" data-action="approve" data-request-id="${req.id}">Approve</button>
                         <button class="btn btn-action btn-decline" data-action="decline" data-request-id="${req.id}">Decline</button>
                     </td>

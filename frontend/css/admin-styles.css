@@ -71,7 +71,6 @@ body {
 }
 .card-title { font-size: 1.25rem; font-weight: 600; }
 .card-content { padding: 1.5rem; }
-/* FIX: Added class to handle zero padding */
 .card-content.no-padding { padding: 0; }
 .controls-grid {
     display: grid;
@@ -112,7 +111,6 @@ body {
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color); text-align: left; white-space: nowrap; }
 th { font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; background: rgba(255,255,255,0.02); }
-/* FIX: Added class for table state messages */
 .table-state {
     padding: 2rem;
     text-align: center;
@@ -156,4 +154,81 @@ th { font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* --- Responsive Styles --- */
+@media screen and (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .header h1 {
+        font-size: 1.5rem;
+    }
+
+    .controls-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .card-content.no-padding {
+        padding: 0.5rem;
+    }
+
+    table {
+        border: 0;
+    }
+
+    table thead {
+        border: none;
+        clip: rect(0 0 0 0);
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        padding: 0;
+        position: absolute;
+        width: 1px;
+    }
+
+    table tr {
+        display: block;
+        margin-bottom: 1rem;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        background: var(--surface-2);
+    }
+
+    table td {
+        display: block;
+        text-align: right;
+        font-size: 0.9rem;
+        border-bottom: 1px dotted var(--border-color);
+        padding: 0.75rem 1rem;
+        white-space: normal;
+    }
+    
+    table td:last-child {
+        border-bottom: 0;
+        padding-top: 1rem;
+    }
+
+    table td::before {
+        content: attr(data-label);
+        float: left;
+        font-weight: bold;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+    }
+
+    td[data-label="Actions"] {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
 }

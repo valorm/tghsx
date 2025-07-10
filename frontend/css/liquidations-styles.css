@@ -109,7 +109,7 @@ body {
 
 .table-container { background: var(--surface-1); border-radius: 20px; overflow-x: auto; }
 .liquidation-table { width: 100%; border-collapse: collapse; }
-.liquidation-table th, .liquidation-table td { padding: 1rem 1.5rem; text-align: left; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+.liquidation-table th, .liquidation-table td { padding: 1rem 1.5rem; text-align: left; border-bottom: 1px solid var(--border-color); }
 .liquidation-table th { background: rgba(22, 27, 34, 0.5); }
 .liquidation-table tbody tr:hover {
     background-color: rgba(255, 255, 255, 0.05);
@@ -265,7 +265,6 @@ body {
     background-color: rgba(255, 255, 255, 0.15);
 }
 
-/* FIX: Add styles for the toast notification */
 .toast { 
     visibility: hidden; 
     min-width: 250px; 
@@ -333,5 +332,50 @@ body {
         flex-direction: column;
         gap: 1.5rem;
         align-items: center;
+    }
+
+    .table-container {
+        border-radius: 0;
+    }
+
+    .liquidation-table thead {
+        border: none;
+        clip: rect(0 0 0 0);
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        padding: 0;
+        position: absolute;
+        width: 1px;
+    }
+    
+    .liquidation-table tr {
+        display: block;
+        margin-bottom: 1rem;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        background: var(--surface-2);
+    }
+    
+    .liquidation-table td {
+        display: block;
+        text-align: right;
+        font-size: 0.9rem;
+        border-bottom: 1px dotted var(--border-color);
+        padding: 0.75rem 1rem;
+        white-space: normal;
+    }
+    
+    .liquidation-table td:last-child {
+        border-bottom: 0;
+    }
+    
+    .liquidation-table td::before {
+        content: attr(data-label);
+        float: left;
+        font-weight: bold;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
     }
 }

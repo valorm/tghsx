@@ -74,11 +74,11 @@ function renderVaults(vaults) {
         const ratio = (parseFloat(vault.collateralization_ratio) / 10000).toFixed(2); // Adjust for precision
 
         row.innerHTML = `
-            <td><a href="https://amoy.polygonscan.com/address/${vault.wallet_address}" target="_blank" class="address-link">${formatAddress(vault.wallet_address)}</a></td>
-            <td>${parseFloat(collateralEth).toFixed(4)} ETH</td>
-            <td>${parseFloat(debtTghsx).toFixed(2)} tGHSX</td>
-            <td><span class="ratio-danger">${ratio}%</span></td>
-            <td>
+            <td data-label="Vault Owner"><a href="https://amoy.polygonscan.com/address/${vault.wallet_address}" target="_blank" class="address-link">${formatAddress(vault.wallet_address)}</a></td>
+            <td data-label="Collateral (ETH)">${parseFloat(collateralEth).toFixed(4)} ETH</td>
+            <td data-label="Debt (tGHSX)">${parseFloat(debtTghsx).toFixed(2)} tGHSX</td>
+            <td data-label="Collateral Ratio"><span class="ratio-danger">${ratio}%</span></td>
+            <td data-label="Action">
                 <button class="liquidate-btn" data-user="${vault.wallet_address}" data-debt="${vault.tghsx_minted}" data-collateral="${vault.eth_collateral}">
                     Liquidate
                 </button>
@@ -127,7 +127,6 @@ async function executeLiquidation() {
     button.textContent = 'Processing...';
 
     try {
-        // FIX: Access contracts from the global appState object
         if (!appState.collateralVaultContract || !appState.tghsxTokenContract) {
             throw new Error("Contracts not initialized. Please reconnect wallet.");
         }
