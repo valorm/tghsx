@@ -1,0 +1,25 @@
+    services:
+      - type: web
+        name: tghs-backend
+        runtime: python
+        plan: free 
+        buildCommand: "pip install -r requirements.txt"
+        startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+        envVars:
+          - key: AMOY_RPC_URL
+            fromGroup: tghs-env
+          - key: PRIVATE_KEY
+            fromGroup: tghs-env
+          - key: TGHSX_TOKEN_ADDRESS
+            fromGroup: tghs-env
+          - key: COLLATERAL_VAULT_ADDRESS
+            fromGroup: tghs-env
+          - key: CHAINLINK_ETH_USD_PRICE_FEED_ADDRESS
+            fromGroup: tghs-env
+          - key: CHAINLINK_USD_GHS_PRICE_FEED_ADDRESS
+            fromGroup: tghs-env
+          - key: SUPABASE_URL
+            fromGroup: tghs-env
+          - key: SUPABASE_KEY
+            fromGroup: tghs-env
+    

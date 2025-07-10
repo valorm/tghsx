@@ -17,8 +17,8 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-    // Ensure 'polygonAmoy' key is exactly as typed here
-    polygonAmoy: {
+
+    amoy: {
       url: POLYGON_AMOY_RPC_URL,
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
       chainId: 80002, // Polygon Amoy Chain ID
@@ -29,11 +29,11 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      polygonAmoy: POLYGONSCAN_API_KEY || "",
+      amoy: POLYGONSCAN_API_KEY || "",
     },
     customChains: [
       {
-        network: "polygonAmoy",
+        network: "amoy",
         chainId: 80002,
         urls: {
           apiURL: "https://api-amoy.polygonscan.com/api",
