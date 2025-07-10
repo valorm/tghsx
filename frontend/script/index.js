@@ -12,6 +12,8 @@
  * ==================================================================================
  */
 
+// FIX: Importing shared state and functions from the module
+import { appState, showToast, getErrorMessage, BACKEND_URL } from './shared-wallet.js';
 
 const CONFIG = {
     LIMITS: {

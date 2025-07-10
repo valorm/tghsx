@@ -24,11 +24,10 @@ body {
     font-size: 0.9rem;
     font-weight: 600;
     z-index: 2000;
-    position: relative
+    position: relative; 
 }
 .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
 
-/* --- Responsive Navbar Styles --- */
 .navbar {
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(10px);
@@ -112,7 +111,6 @@ body {
     z-index: 101;
 }
 
-/* --- Page-Specific Styles --- */
 .page-header { text-align: center; margin-bottom: 2rem; padding-top: 2rem; }
 .page-title { font-size: 2.5rem; margin-bottom: 0.5rem; }
 .page-subtitle { font-size: 1.1rem; color: var(--text-secondary); max-width: 600px; margin: 0 auto; }
@@ -156,7 +154,6 @@ body {
     display: none;
 }
 
-/* --- Modal Styles --- */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -165,7 +162,7 @@ body {
     height: 100%;
     background: rgba(13, 17, 23, 0.7);
     backdrop-filter: blur(5px);
-    display: none; /* Initially hidden */
+    display: none;
     align-items: center;
     justify-content: center;
     z-index: 2000;
@@ -306,6 +303,50 @@ body {
 .toast.info {
     background: linear-gradient(45deg, var(--accent-blue), #1d4ed8);
 }
+
+/* --- Connection Modal Styles --- */
+#connectionModal .modal-content {
+    max-width: 450px;
+    padding: 2.5rem;
+}
+
+#connectionModal .modal-title {
+    color: var(--text-primary);
+}
+
+.connection-options {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.connection-btn {
+    width: 100%;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.connection-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: #ff6b9d;
+}
+
+#connectionModal .modal-actions {
+    margin-top: 1rem;
+}
+
 
 @media (max-width: 768px) {
     .menu-toggle {

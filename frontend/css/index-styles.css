@@ -21,7 +21,7 @@ body {
     font-size: 0.9rem;
     font-weight: 600;
     z-index: 2000;
-    position: relative; /* Ensures z-index is applied correctly */
+    position: relative; 
 }
 
 /* New Protocol Status Banner Styles */
@@ -645,7 +645,7 @@ body {
     opacity: 1;
 }
 
-.risk-modal-overlay {
+.risk-modal-overlay, .confirmation-modal, .modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
@@ -660,15 +660,16 @@ body {
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.4s ease, visibility 0.4s ease;
+    padding: 1rem;
 }
 
-.risk-modal-overlay.show {
+.risk-modal-overlay.show, .confirmation-modal.active, .modal-overlay.show {
     display: flex;
     opacity: 1;
     visibility: visible;
 }
 
-.risk-modal {
+.risk-modal, .confirmation-content, .modal-content {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 20px;
@@ -679,7 +680,16 @@ body {
     transition: transform 0.4s ease;
 }
 
-.risk-modal-overlay.show .risk-modal { transform: translateY(0); }
+.confirmation-content, .modal-content {
+    max-width: 500px;
+    padding: 1.5rem;
+}
+
+.risk-modal-overlay.show .risk-modal,
+.confirmation-modal.active .confirmation-content,
+.modal-overlay.show .modal-content {
+    transform: translateY(0);
+}
 
 .risk-modal-title {
     font-size: 1.8rem;
@@ -827,7 +837,6 @@ body {
     border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* FIX: Added disabled state for preset buttons */
 .preset-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
@@ -886,44 +895,6 @@ body {
     font-size: 0.75rem;
     opacity: 0.7;
     margin-top: 0.25rem;
-}
-
-.confirmation-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgb(15 23 42 / 50%);
-    backdrop-filter: blur(8px);
-    display: none;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.3s ease;
-    padding: 1rem;
-}
-
-.confirmation-modal.active {
-    display: flex;
-    opacity: 1;
-    visibility: visible;
-}
-
-.confirmation-content {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1); 
-    border-radius: 20px;
-    width: 100%;
-    max-width: 500px;
-    max-height: 90vh;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
 }
 
 .confirmation-header {
@@ -1095,6 +1066,72 @@ body {
 
 .hidden { display: none; }
 
+/* --- Connection Modal Styles --- */
+#connectionModal .modal-content {
+    max-width: 450px;
+    padding: 2.5rem;
+}
+
+#connectionModal .modal-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+#connectionModal .modal-text {
+    color: #8B949E;
+    margin-bottom: 2rem;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.connection-options {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.connection-btn {
+    width: 100%;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.connection-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: #ff6b9d;
+}
+
+#connectionModal .modal-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+#connectionModal .modal-btn.btn-secondary {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#connectionModal .modal-btn.btn-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+
 @media (max-width: 992px) {
     .main-content {
         grid-template-columns: 1fr;
@@ -1105,13 +1142,12 @@ body {
     .hero-title { font-size: 2.2rem; }
     .input-row { grid-template-columns: 1fr; }
     .status-bar { flex-direction: column; align-items: stretch; gap: 0.5rem; }
-    .risk-modal { padding: 1.5rem; }
+    .risk-modal, .confirmation-content, .modal-content { padding: 1.5rem; }
     .risk-modal-title { font-size: 1.5rem; }
     .modal-buttons { flex-direction: column; }
     .preset-buttons { flex-wrap: wrap; }
     .preset-btn { flex: 0 0 calc(50% - 0.25rem); }
 
-    /* Responsive Navbar */
     .menu-toggle {
         display: block;
     }

@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- CSP: 'unsafe-inline' added to style-src to allow for dynamic styling by JavaScript -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx.onrender.com; img-src 'self' https://s2.coinmarketcap.com;">
+    <!-- FIX: Updated CSP to allow WalletConnect API and image connections -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://esm.sh; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx.onrender.com wss://relay.walletconnect.com https://explorer-api.walletconnect.com; img-src 'self' https://s2.coinmarketcap.com https://explorer-api.walletconnect.com;">
     <link rel="icon" href="../favicon.png" type="image/png">
     <title>tGHSX - Ghana Stablecoin</title>
     
-    <!-- SRI: Ensures the integrity of external scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js" integrity="sha256-pmKTpqK7Te4GGmhhK+C+PFwKt+QGirjZiko1e69mTHM=" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" xintegrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,7 +25,6 @@
         <span id="protocolStatusText"></span>
     </div>
 
-    <!-- Main application content is now wrapped and hidden by default -->
     <div id="app-content" class="hidden">
         <header>
             <nav class="navbar">
@@ -132,6 +130,25 @@
     </div>
 
     <div id="toastNotification" class="toast"></div>
+
+    <!-- Connection Modal -->
+    <div id="connectionModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 class="modal-title">Connect a Wallet</h3>
+            <p class="modal-text">Choose your preferred connection method.</p>
+            <div class="connection-options">
+                <button id="connectMetaMaskBtn" class="connection-btn">
+                    <i class="fas fa-desktop"></i> Browser Wallet
+                </button>
+                <button id="connectWalletConnectBtn" class="connection-btn">
+                    <i class="fas fa-qrcode"></i> WalletConnect
+                </button>
+            </div>
+            <div class="modal-actions">
+                <button id="cancelConnectionBtn" class="btn modal-btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
 
     <div class="confirmation-modal" id="confirmationModal">
         <div class="confirmation-content">
@@ -250,7 +267,6 @@
         </div>
     </div>
 
-    <!-- New overlay for when risks are declined -->
     <div id="riskDeclinedOverlay" class="risk-modal-overlay hidden">
         <div class="risk-modal">
             <h2 class="risk-modal-title">Risks Declined</h2>
@@ -258,7 +274,7 @@
         </div>
     </div>
     
-   <script src="../script/shared-wallet.js" defer></script>
-   <script src="../script/index.js" defer></script>
+   <script type="module" src="../script/shared-wallet.js" defer></script>
+   <script type="module" src="../script/index.js" defer></script>
 </body>
 </html>

@@ -8,6 +8,8 @@
  * ==================================================================================
  */
 
+import { appState, showToast, getErrorMessage, formatAddress, BACKEND_URL } from './shared-wallet.js';
+
 const elements = {
     tableBody: document.getElementById('liquidationTableBody'),
     loadingState: document.getElementById('loadingState'),
@@ -22,9 +24,6 @@ const elements = {
 
 let currentLiquidationTarget = null;
 
-/**
- * Fetches at-risk vaults from the backend and renders them.
- */
 async function fetchAndRenderRiskyVaults() {
     elements.loadingState.classList.remove('hidden');
     elements.emptyState.classList.add('hidden');
@@ -62,16 +61,12 @@ async function fetchAndRenderRiskyVaults() {
     }
 }
 
-/**
- * Renders the list of vaults into the table.
- * @param {Array} vaults - An array of vault objects from the backend.
- */
 function renderVaults(vaults) {
     vaults.forEach(vault => {
         const row = elements.tableBody.insertRow();
         const collateralEth = ethers.utils.formatEther(vault.eth_collateral);
         const debtTghsx = ethers.utils.formatEther(vault.tghsx_minted);
-        const ratio = (parseFloat(vault.collateralization_ratio) / 10000).toFixed(2); // Adjust for precision
+        const ratio = (parseFloat(vault.collateralization_ratio) / 10000).toFixed(2);
 
         row.innerHTML = `
             <td data-label="Vault Owner"><a href="https://amoy.polygonscan.com/address/${vault.wallet_address}" target="_blank" class="address-link">${formatAddress(vault.wallet_address)}</a></td>
@@ -87,16 +82,12 @@ function renderVaults(vaults) {
     });
 }
 
-/**
- * Shows the confirmation modal with details about the liquidation.
- * @param {object} target - The dataset from the clicked liquidate button.
- */
 async function showLiquidationModal(target) {
     const { user, debt, collateral } = target;
     currentLiquidationTarget = target;
 
-    const tghsxToRepay = ethers.BigNumber.from(debt).div(2); // Liquidate 50%
-    const ethToReceive = (ethers.BigNumber.from(collateral).div(2)).mul(105).div(100); // 50% collateral + 5% bonus
+    const tghsxToRepay = ethers.BigNumber.from(debt).div(2);
+    const ethToReceive = (ethers.BigNumber.from(collateral).div(2)).mul(105).div(100);
 
     elements.modalVaultOwner.textContent = formatAddress(user);
     elements.modalRepayAmount.textContent = `~${parseFloat(ethers.utils.formatEther(tghsxToRepay)).toFixed(2)} tGHSX`;
@@ -105,17 +96,11 @@ async function showLiquidationModal(target) {
     elements.modal.classList.add('show');
 }
 
-/**
- * Hides the liquidation confirmation modal.
- */
 function hideLiquidationModal() {
     elements.modal.classList.remove('show');
     currentLiquidationTarget = null;
 }
 
-/**
- * Executes the on-chain liquidation transaction.
- */
 async function executeLiquidation() {
     if (!currentLiquidationTarget) return;
 
@@ -131,7 +116,7 @@ async function executeLiquidation() {
             throw new Error("Contracts not initialized. Please reconnect wallet.");
         }
 
-        const tghsxToRepay = ethers.BigNumber.from(userDebtWei).div(2); // Liquidate 50%
+        const tghsxToRepay = ethers.BigNumber.from(userDebtWei).div(2);
         
         showToast('Checking tGHSX allowance...', 'info');
         const allowance = await appState.tghsxTokenContract.allowance(appState.userAccount, appState.collateralVaultContract.address);
@@ -148,7 +133,7 @@ async function executeLiquidation() {
         await liquidateTx.wait();
 
         showToast('Liquidation successful!', 'success');
-        fetchAndRenderRiskyVaults(); // Refresh the list
+        fetchAndRenderRiskyVaults();
 
     } catch (error) {
         console.error('Liquidation failed:', error);
@@ -159,12 +144,9 @@ async function executeLiquidation() {
     }
 }
 
-// --- Page Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Listen for wallet connection to fetch data
     document.addEventListener('networkConnected', fetchAndRenderRiskyVaults);
 
-    // Add event listener for clicks on the table body (event delegation)
     elements.tableBody.addEventListener('click', (event) => {
         const button = event.target.closest('.liquidate-btn');
         if (button) {
@@ -180,11 +162,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Modal button listeners
     elements.modalConfirmBtn.addEventListener('click', executeLiquidation);
     elements.modalCancelBtn.addEventListener('click', hideLiquidationModal);
 
-    // If wallet is already connected on page load, fetch data
     if (appState.isCorrectNetwork) {
         fetchAndRenderRiskyVaults();
     }

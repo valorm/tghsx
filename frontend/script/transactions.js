@@ -10,9 +10,10 @@
  * ==================================================================================
  */
 
+import { appState, logoutUser, formatAddress, showToast, BACKEND_URL } from './shared-wallet.js';
+
 const recordsPerPage = 10;
 
-// State specific to this page
 let pageState = {
     transactions: [],
     currentPage: 1,
@@ -23,7 +24,6 @@ let pageState = {
     currentFilter: 'all',
 };
 
-// --- DOM Element Cache ---
 const elements = {
     tableBody: document.getElementById('transactionTableBody'),
     recordCount: document.getElementById('recordCount'),
@@ -34,16 +34,12 @@ const elements = {
     exportBtn: document.getElementById('exportBtn'),
 };
 
-/**
- * Fetches a specific page of transactions from the backend.
- * @param {number} page - The page number to fetch.
- */
 async function fetchTransactions(page = 1) {
     if (pageState.isLoading) return;
 
     pageState.isLoading = true;
     pageState.error = null;
-    updateView(); // Show loading skeleton
+    updateView();
 
     const token = localStorage.getItem('accessToken');
     if (!token) {
@@ -59,7 +55,7 @@ async function fetchTransactions(page = 1) {
         });
 
         if (!response.ok) {
-            if (response.status === 401) logoutUser(); // from shared-wallet.js
+            if (response.status === 401) logoutUser();
             throw new Error('Failed to fetch transactions from the server.');
         }
 
@@ -72,16 +68,13 @@ async function fetchTransactions(page = 1) {
     } catch (error) {
         console.error('Error fetching transactions:', error);
         pageState.error = error.message;
-        pageState.transactions = []; // Clear any old data
+        pageState.transactions = [];
     } finally {
         pageState.isLoading = false;
-        updateView(); // Render the final state (data, empty, or error)
+        updateView();
     }
 }
 
-/**
- * Main render function to update the entire view based on the current state.
- */
 function updateView() {
     if (pageState.isLoading) {
         renderLoadingSkeleton();
@@ -95,11 +88,8 @@ function updateView() {
     updatePaginationUI();
 }
 
-/**
- * Renders loading skeleton rows in the table.
- */
 function renderLoadingSkeleton() {
-    elements.tableBody.innerHTML = ''; // Clear previous content
+    elements.tableBody.innerHTML = '';
     for (let i = 0; i < recordsPerPage; i++) {
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -115,10 +105,6 @@ function renderLoadingSkeleton() {
     elements.recordCount.innerHTML = '<span>Loading...</span>';
 }
 
-/**
- * Renders an error message in the table body.
- * @param {string} message - The error message to display.
- */
 function renderErrorState(message) {
     elements.tableBody.innerHTML = `
         <tr>
@@ -130,13 +116,9 @@ function renderErrorState(message) {
                 </div>
             </td>
         </tr>`;
-    // Add event listener to the new button
     document.getElementById('retryBtn').addEventListener('click', () => fetchTransactions(1));
 }
 
-/**
- * Renders the empty state message when no transactions are found.
- */
 function renderEmptyState() {
     elements.tableBody.innerHTML = `
         <tr>
@@ -149,11 +131,8 @@ function renderEmptyState() {
         </tr>`;
 }
 
-/**
- * Renders the current page of transactions into the table body.
- */
 function renderTablePage() {
-    elements.tableBody.innerHTML = ''; // Clear previous content
+    elements.tableBody.innerHTML = '';
     pageState.transactions.forEach(tx => {
         const row = document.createElement('tr');
         const badgeClass = getMethodBadgeClass(tx.method);
@@ -169,9 +148,6 @@ function renderTablePage() {
     });
 }
 
-/**
- * Updates the pagination controls (e.g., "Page 1 of 5").
- */
 function updatePaginationUI() {
     elements.pageInfo.textContent = `Page ${pageState.currentPage} of ${pageState.totalPages || 1}`;
     elements.recordCount.innerHTML = `<span>Total ${pageState.totalRecords} records</span>`;
@@ -180,12 +156,9 @@ function updatePaginationUI() {
     elements.exportBtn.disabled = pageState.transactions.length === 0 || pageState.isLoading;
 }
 
-/**
- * Formats a raw transaction object from the API into a more display-friendly format.
- */
 function formatTransaction(tx) {
     const eventData = JSON.parse(tx.event_data);
-    const userAddressShort = eventData.user ? formatAddress(eventData.user) : 'N/A'; // from shared-wallet.js
+    const userAddressShort = eventData.user ? formatAddress(eventData.user) : 'N/A';
     let amount, value, method = 'Unknown', direction = '', from = 'N/A', to = 'N/A', amountStr = '';
     
     switch(tx.event_name) {
@@ -220,14 +193,11 @@ function formatTransaction(tx) {
     }
 
     return {
-        hash: formatAddress(tx.tx_hash), fullHash: tx.tx_hash, // from shared-wallet.js
+        hash: formatAddress(tx.tx_hash), fullHash: tx.tx_hash,
         method, datetime: tx.block_timestamp, from, to, amount: amountStr, value, direction
     };
 }
 
-/**
- * Gets the appropriate CSS class for a transaction method badge.
- */
 function getMethodBadgeClass(method) {
     if (method.includes('Deposit')) return 'withdraw';
     if (method.includes('Withdraw')) return 'deposit';
@@ -236,9 +206,6 @@ function getMethodBadgeClass(method) {
     return '';
 }
 
-/**
- * Exports the currently displayed transactions to a CSV file.
- */
 function exportToCSV() {
     if (pageState.transactions.length === 0) {
         showToast("No data to export.", "info");
@@ -262,30 +229,22 @@ function exportToCSV() {
     document.body.removeChild(link);
 }
 
-/**
- * Handles the change event for the transaction type filter.
- */
 function handleFilterChange(event) {
     pageState.currentFilter = event.target.value;
-    // Fetch from the first page with the new filter
     fetchTransactions(1);
 }
 
-// --- Page Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Set up listeners for page-specific actions
     elements.prevPageBtn.addEventListener('click', () => fetchTransactions(pageState.currentPage - 1));
     elements.nextPageBtn.addEventListener('click', () => fetchTransactions(pageState.currentPage + 1));
     elements.typeFilter.addEventListener('change', handleFilterChange);
     elements.exportBtn.addEventListener('click', exportToCSV);
 
-    // Listen for events from the shared wallet script
     document.addEventListener('networkConnected', () => fetchTransactions(1));
     document.addEventListener('walletDisconnected', () => {
         pageState = { ...pageState, transactions: [], totalRecords: 0, totalPages: 1, currentPage: 1, error: null };
         updateView();
     });
     
-    // Initial render of the view. Data will be fetched if wallet is already connected.
     updateView();
 });

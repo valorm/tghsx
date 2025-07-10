@@ -7,12 +7,8 @@
  * ==================================================================================
  */
 
-/**
- * Formats a number into a currency string with abbreviations (K, M).
- * @param {number|string} value - The numerical value.
- * @param {string} currency - The currency symbol (e.g., 'ETH ', 'tGHSX ').
- * @returns {string} - The formatted currency string.
- */
+import { logoutUser, BACKEND_URL } from './shared-wallet.js';
+
 function formatCurrency(value, currency = 'GH₵') {
     const num = parseFloat(value);
     if (isNaN(num)) return 'N/A';
@@ -21,9 +17,6 @@ function formatCurrency(value, currency = 'GH₵') {
     return `${currency}${num.toFixed(2)}`;
 }
 
-/**
- * Fetches analytics data from the backend and updates the UI.
- */
 async function fetchAnalyticsData() {
     try {
         const token = localStorage.getItem('accessToken');
@@ -37,25 +30,21 @@ async function fetchAnalyticsData() {
         });
 
         if (!response.ok) {
-            if (response.status === 401) logoutUser(); // from shared-wallet.js
+            if (response.status === 401) logoutUser();
             throw new Error('Failed to fetch protocol health data');
         }
         
         const data = await response.json();
         
-        // Update the stat cards
         document.getElementById('tvlValue').textContent = formatCurrency(data.totalValueLocked, 'ETH ');
         document.getElementById('totalDebt').textContent = formatCurrency(data.totalDebt, 'tGHSX ');
         document.getElementById('activeVaults').textContent = data.numberOfVaults;
         document.getElementById('avgRatio').textContent = `${parseFloat(data.averageCollateralizationRatio).toFixed(2)}%`;
 
-        // Note: Using dummy history data as the API doesn't provide it.
-        // In a real app, you would fetch this historical data from the backend.
         const labels = ['6 days ago', '5 days ago', '4 days ago', '3 days ago', '2 days ago', 'Yesterday', 'Today'];
         const tvlHistory = [10, 25, 40, 30, 55, 70, parseFloat(data.totalValueLocked)];
         const debtHistory = [5000, 12000, 20000, 15000, 28000, 35000, parseFloat(data.totalDebt)];
 
-        // Render the charts
         renderChart('tvlChart', 'TVL (ETH)', labels, tvlHistory, '#3FB950');
         renderChart('debtChart', 'Debt (tGHSX)', labels, debtHistory, 'var(--accent-primary)');
 
@@ -68,17 +57,8 @@ async function fetchAnalyticsData() {
     }
 }
 
-/**
- * Renders a line chart using Chart.js.
- * @param {string} canvasId - The ID of the canvas element.
- * @param {string} label - The dataset label.
- * @param {string[]} labels - The labels for the X-axis.
- * @param {number[]} data - The data points for the Y-axis.
- * @param {string} color - The primary color for the line and fill.
- */
 function renderChart(canvasId, label, labels, data, color) {
     const ctx = document.getElementById(canvasId).getContext('2d');
-    // Destroy previous chart instance if it exists to prevent memory leaks
     if (window.chartInstances && window.chartInstances[canvasId]) {
         window.chartInstances[canvasId].destroy();
     }
@@ -107,16 +87,12 @@ function renderChart(canvasId, label, labels, data, color) {
         }
     });
 
-    // Store chart instance to manage its lifecycle
     if (!window.chartInstances) {
         window.chartInstances = {};
     }
     window.chartInstances[canvasId] = chart;
 }
 
-// --- Page Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
-    // The main initializeApp() from shared-wallet.js handles wallet connection.
-    // We just need to fetch the data for this specific page.
     fetchAnalyticsData();
 });
