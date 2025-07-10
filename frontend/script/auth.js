@@ -7,7 +7,7 @@
  */
 
 let toastTimeout;
-
+BACKEND_URL: 'https://tghsx.onrender.com',
 /**
  * Displays the registration form and hides the login form.
  * @param {Event} event - The click event to prevent default link behavior.
