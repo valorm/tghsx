@@ -320,12 +320,14 @@ main {
 .social-link:hover { color: var(--accent-primary); transform: scale(1.1); }
 
 .testnet-banner {
-    background: linear-gradient(45deg, var(--accent-orange), #e67e22);
-    color: white;
+    background-color: #f59e0b;
+    color: #1e293b;
     text-align: center;
-    padding: 0.75rem;
-    font-weight: 500;
-    font-size: 1rem;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    z-index: 2000;
+    position: relative
 }
 
 .disclaimer-section { padding: 4rem 0; }

@@ -15,6 +15,16 @@ body {
     color: var(--text-primary); 
     min-height: 100vh; 
 }
+.testnet-banner {
+    background-color: #f59e0b;
+    color: #1e293b;
+    text-align: center;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    z-index: 2000;
+    position: relative
+}
 .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
 
 /* --- Responsive Navbar Styles --- */

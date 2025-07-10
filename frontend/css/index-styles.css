@@ -21,6 +21,7 @@ body {
     font-size: 0.9rem;
     font-weight: 600;
     z-index: 2000;
+    position: relative; /* Ensures z-index is applied correctly */
 }
 
 /* New Protocol Status Banner Styles */
