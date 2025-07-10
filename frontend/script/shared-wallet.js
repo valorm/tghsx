@@ -33,13 +33,25 @@ const appState = {
     networkName: null,
     collateralVaultContract: null,
     tghsxTokenContract: null,
-    isProtocolPaused: false, 
+    isProtocolPaused: false,
 };
 
 // --- Core Wallet & Blockchain Functions ---
 
 async function connectWallet() {
     if (appState.isConnecting) return;
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    if (isMobile) {
+        // For mobile, generate a deep link to open a wallet app
+        const dappUrl = window.location.href.split('?')[0]; // URL of the current page
+        const metamaskAppUrl = `https://metamask.app.link/dapp/${dappUrl}`;
+        window.open(metamaskAppUrl, '_blank');
+        showToast('Connecting with your mobile wallet...', 'info');
+        return;
+    }
+
     if (typeof window.ethereum === 'undefined') {
         return showToast('MetaMask is not installed. Please install it to continue.', 'error');
     }
@@ -54,7 +66,7 @@ async function connectWallet() {
 
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         if (accounts.length === 0) throw new Error('No accounts found in MetaMask.');
-        
+
         localStorage.setItem('walletConnected', 'true');
         await handleAccountsChanged(accounts);
 
@@ -76,16 +88,16 @@ async function handleAccountsChanged(accounts) {
 
     const previousAccount = appState.userAccount;
     appState.userAccount = accounts[0];
-    
+
     if (!appState.provider) {
         appState.provider = new ethers.providers.Web3Provider(window.ethereum);
     }
     appState.signer = appState.provider.getSigner();
 
     updateWalletUI();
-    
+
     await saveWalletAddressToBackend(appState.userAccount);
-    
+
     if (await initializeContracts()) {
         await checkNetwork();
         await fetchProtocolStatus();
@@ -120,7 +132,7 @@ async function fetchProtocolStatus() {
         document.dispatchEvent(new CustomEvent('protocolStatusUpdated', { detail: { isPaused } }));
     } catch (error) {
         console.error("Could not fetch protocol status:", error);
-        appState.isProtocolPaused = false; 
+        appState.isProtocolPaused = false;
         document.dispatchEvent(new CustomEvent('protocolStatusUpdated', { detail: { isPaused: false, error: true } }));
     }
 }
@@ -161,10 +173,10 @@ function resetWalletState() {
     appState.collateralVaultContract = null;
     appState.tghsxTokenContract = null;
     appState.isProtocolPaused = false;
-    
+
     localStorage.removeItem('walletConnected');
     localStorage.removeItem('wallet_disconnected');
-    
+
     updateWalletUI();
     document.dispatchEvent(new Event('walletDisconnected'));
 }
@@ -286,10 +298,10 @@ function initializeApp() {
         window.location.href = './auth.html';
         return;
     }
-    
+
     const walletBtn = document.getElementById('walletBtn');
     const logoutBtn = document.getElementById('logoutBtn');
-    
+
     if (walletBtn) walletBtn.onclick = connectWallet;
     if (logoutBtn) logoutBtn.onclick = logoutUser;
 
@@ -301,10 +313,20 @@ function initializeApp() {
     if (localStorage.getItem('wallet_disconnected') !== 'true') {
         checkForExistingConnection();
     }
-    
+
     updateWalletUI();
 
     setInterval(fetchProtocolStatus, 60000);
+
+    // --- Mobile Navigation Logic ---
+    const menuIcon = document.querySelector('.menu-icon');
+    const navUl = document.querySelector('nav ul');
+
+    if (menuIcon && navUl) {
+        menuIcon.addEventListener('click', () => {
+            navUl.classList.toggle('active');
+        });
+    }
 }
 
 document.addEventListener('DOMContentLoaded', initializeApp);
