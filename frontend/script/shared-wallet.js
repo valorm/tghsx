@@ -11,25 +11,21 @@
  * ==================================================================================
  */
 
-// --- Import WalletConnect Library ---
 // FIX: Using a module-friendly CDN (esm.sh) to resolve the import error.
 import EthereumProvider from 'https://esm.sh/@walletconnect/ethereum-provider@2.11.0';
-
-// --- Global Configuration & State ---
 
 const NETWORKS = {
     31337: 'Localhost (Hardhat)',
     80002: 'Polygon Amoy Testnet',
     137: 'Polygon Mainnet',
 };
-const REQUIRED_CHAIN_ID = 80002; // Polygon Amoy
+const REQUIRED_CHAIN_ID = 80002;
 
 export const BACKEND_URL = 'https://tghsx.onrender.com';
 const CONTRACT_ADDRESS = "0x33B74A7225ec9836DE11e46Ce61026e0B0E7F657";
 const COLLATERAL_VAULT_ABI = [ "event CollateralDeposited(address indexed user, uint256 amount, uint256 indexed blockNumber)", "event CollateralWithdrawn(address indexed user, uint256 amount)", "event TGHSXMinted(address indexed user, uint256 amount, uint256 indexed newRatio)", "event TGHSXBurned(address indexed user, uint256 amount, uint256 indexed newRatio)", "function deposit() external payable", "function withdraw(uint256 amount) external", "function mintTGHSX(uint256 amount) external", "function burnTGHSX(uint256 amount) external", "function depositAndMint(uint256 tghsxAmountToMint) external payable", "function repayAndWithdraw(uint256 repayAmount, uint256 withdrawAmount) external", "function getEthGhsPrice() public view returns (uint256 ethGhsPrice)", "function getUserCollateral(address user) external view returns (uint256)", "function getUserDebt(address user) external view returns (uint256)", "function getCollateralizationRatio(address user) external view returns (uint256)", "function tghsxToken() view returns (address)", "function liquidateVault(address user, uint256 tghsxToRepay) external", "function paused() view returns (bool)" ];
 const TGHSX_ABI = [ "function approve(address spender, uint256 amount) external returns (bool)", "function allowance(address owner, address spender) external view returns (uint256)" ];
 
-// FIX: Exporting appState so it can be imported by other modules.
 export const appState = {
     userAccount: null,
     provider: null,
@@ -40,16 +36,11 @@ export const appState = {
     collateralVaultContract: null,
     tghsxTokenContract: null,
     isProtocolPaused: false,
-    connectionType: null, // 'metamask' or 'walletconnect'
+    connectionType: null,
 };
 
 let walletConnectProvider = null;
 
-// --- Core Wallet & Blockchain Functions ---
-
-/**
- * Initializes the WalletConnect provider instance.
- */
 async function initializeWalletConnect() {
     try {
         const projectId = '4571f8b102cc836bdd761e9798a0e1f4'; 
@@ -75,9 +66,6 @@ async function initializeWalletConnect() {
     }
 }
 
-/**
- * Opens the connection modal.
- */
 export function connectWallet() {
     const modal = document.getElementById('connectionModal');
     if (modal) {
@@ -87,9 +75,6 @@ export function connectWallet() {
     }
 }
 
-/**
- * Connects using MetaMask.
- */
 async function connectWithMetaMask() {
     if (typeof window.ethereum === 'undefined') {
         return showToast('MetaMask is not installed.', 'error');
@@ -118,9 +103,6 @@ async function connectWithMetaMask() {
     }
 }
 
-/**
- * Connects using WalletConnect.
- */
 async function connectWithWalletConnect() {
     if (!walletConnectProvider) {
         await initializeWalletConnect();
@@ -141,8 +123,13 @@ async function connectWithWalletConnect() {
         await setupProviderAndState(provider, accounts[0]);
 
     } catch (error) {
-        console.error('Error connecting with WalletConnect:', error);
-        showToast(getErrorMessage(error), 'error');
+        // FIX: Handle the case where the user closes the WalletConnect modal
+        if (error.message && error.message.includes('Connection request reset')) {
+            console.log('WalletConnect modal closed by user.');
+        } else {
+            console.error('Error connecting with WalletConnect:', error);
+            showToast(getErrorMessage(error), 'error');
+        }
         resetWalletState();
     } finally {
         appState.isConnecting = false;
@@ -150,9 +137,6 @@ async function connectWithWalletConnect() {
     }
 }
 
-/**
- * Centralized function to set up state after connection.
- */
 async function setupProviderAndState(provider, account) {
     appState.provider = provider;
     appState.signer = provider.getSigner();
@@ -171,9 +155,6 @@ async function setupProviderAndState(provider, account) {
     listenToProviderEvents();
 }
 
-/**
- * Sets up listeners for provider events.
- */
 function listenToProviderEvents() {
     const providerSource = appState.connectionType === 'metamask' ? window.ethereum : walletConnectProvider;
     if (!providerSource) return;
@@ -193,9 +174,6 @@ function listenToProviderEvents() {
 }
 
 
-/**
- * Checks the connected network.
- */
 async function checkNetwork() {
     if (!appState.provider) return;
     try {
@@ -216,9 +194,6 @@ async function checkNetwork() {
     }
 }
 
-/**
- * Disconnects the wallet.
- */
 export async function disconnectWallet() {
     if (appState.connectionType === 'walletconnect' && walletConnectProvider?.connected) {
         await walletConnectProvider.disconnect();
@@ -227,9 +202,6 @@ export async function disconnectWallet() {
     showToast('Wallet disconnected', 'info');
 }
 
-/**
- * Resets the wallet state.
- */
 function resetWalletState() {
     appState.userAccount = null;
     appState.provider = null;
@@ -246,9 +218,6 @@ function resetWalletState() {
     document.dispatchEvent(new Event('walletDisconnected'));
 }
 
-/**
- * Checks for an existing connection on page load.
- */
 async function checkForExistingConnection() {
     const connectionType = localStorage.getItem('walletConnected');
     if (!connectionType) return;
@@ -265,9 +234,6 @@ async function checkForExistingConnection() {
     }
 }
 
-/**
- * Initializes contract instances.
- */
 async function initializeContracts() {
     if (!appState.signer) return false;
     try {
@@ -283,9 +249,6 @@ async function initializeContracts() {
     }
 }
 
-/**
- * Fetches the protocol's pause status.
- */
 async function fetchProtocolStatus() {
     if (!appState.collateralVaultContract) return;
     try {
@@ -299,9 +262,6 @@ async function fetchProtocolStatus() {
     }
 }
 
-/**
- * Saves wallet address to the backend.
- */
 async function saveWalletAddressToBackend(walletAddress) {
     const token = localStorage.getItem('accessToken');
     if (!token) return;
@@ -320,12 +280,6 @@ async function saveWalletAddressToBackend(walletAddress) {
     }
 }
 
-
-// --- UI & Utility Functions ---
-
-/**
- * Updates the wallet button UI.
- */
 function updateWalletUI() {
     const walletBtn = document.getElementById('walletBtn');
     if (!walletBtn) return;
@@ -393,9 +347,6 @@ export function getErrorMessage(error) {
     return 'An unexpected error occurred. Please try again.';
 }
 
-
-// --- App Initialization ---
-
 async function initializeApp() {
     const token = localStorage.getItem('accessToken');
     const onAuthPage = window.location.pathname.endsWith('auth.html');
@@ -404,27 +355,34 @@ async function initializeApp() {
         return;
     }
 
-    const connectMetaMaskBtn = document.getElementById('connectMetaMaskBtn');
-    const connectWalletConnectBtn = document.getElementById('connectWalletConnectBtn');
-    const cancelConnectionBtn = document.getElementById('cancelConnectionBtn');
-    const menuToggle = document.getElementById('menu-toggle');
-    const navMenu = document.getElementById('nav-menu');
-
     document.getElementById('walletBtn')?.addEventListener('click', connectWallet);
     document.getElementById('logoutBtn')?.addEventListener('click', logoutUser);
     
-    if (connectMetaMaskBtn) connectMetaMaskBtn.addEventListener('click', () => {
-        document.getElementById('connectionModal').classList.remove('show');
-        connectWithMetaMask();
-    });
-    if (connectWalletConnectBtn) connectWalletConnectBtn.addEventListener('click', () => {
-        document.getElementById('connectionModal').classList.remove('show');
-        connectWithWalletConnect();
-    });
-    if (cancelConnectionBtn) cancelConnectionBtn.addEventListener('click', () => {
-        document.getElementById('connectionModal').classList.remove('show');
-    });
+    const connectMetaMaskBtn = document.getElementById('connectMetaMaskBtn');
+    if (connectMetaMaskBtn) {
+        connectMetaMaskBtn.addEventListener('click', () => {
+            document.getElementById('connectionModal').classList.remove('show');
+            connectWithMetaMask();
+        });
+    }
 
+    const connectWalletConnectBtn = document.getElementById('connectWalletConnectBtn');
+    if (connectWalletConnectBtn) {
+        connectWalletConnectBtn.addEventListener('click', () => {
+            document.getElementById('connectionModal').classList.remove('show');
+            connectWithWalletConnect();
+        });
+    }
+
+    const cancelConnectionBtn = document.getElementById('cancelConnectionBtn');
+    if (cancelConnectionBtn) {
+        cancelConnectionBtn.addEventListener('click', () => {
+            document.getElementById('connectionModal').classList.remove('show');
+        });
+    }
+
+    const menuToggle = document.getElementById('menu-toggle');
+    const navMenu = document.getElementById('nav-menu');
     if (menuToggle && navMenu) {
         menuToggle.addEventListener('click', () => {
             navMenu.classList.toggle('active');

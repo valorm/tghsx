@@ -8,6 +8,9 @@
  * ==================================================================================
  */
 
+// FIX: Importing necessary functions from the shared module
+import { BACKEND_URL, showToast, logoutUser } from './shared-wallet.js';
+
 let currentToken = null;
 
 /**
@@ -122,8 +125,8 @@ async function fetchPendingRequests() {
 
     loadingState.classList.remove('hidden');
     emptyState.classList.add('hidden');
-    requestsTable.style.display = 'none'; // Use style to hide table structure
-    tableBody.innerHTML = ''; // Clear previous results
+    requestsTable.style.display = 'none';
+    tableBody.innerHTML = '';
 
     try {
         const requests = await apiCall('/mint/admin/pending-requests');
@@ -146,7 +149,7 @@ async function fetchPendingRequests() {
                     </td>
                 `;
             });
-            requestsTable.style.display = 'table'; // Show table
+            requestsTable.style.display = 'table';
         }
     } catch (error) {
         if (error.message !== 'Unauthorized') {
@@ -208,7 +211,6 @@ function showActionModal(action, requestId) {
     
     modal.classList.add('show');
 
-    // Use a one-time event listener for confirmation
     confirmBtn.onclick = () => {
         modal.classList.remove('show');
         handleConfirm(action, requestId);
@@ -312,7 +314,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
     
-    // Setup Event Listeners
     document.getElementById('logoutBtn').addEventListener('click', logoutUser);
     document.getElementById('refreshBtn').addEventListener('click', refreshAllData);
     document.getElementById('pauseBtn').addEventListener('click', () => showActionModal('pause'));
@@ -321,7 +322,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('actionModal').classList.remove('show');
     });
 
-    // Event delegation for dynamically created buttons in the table
     document.getElementById('requestsTableBody').addEventListener('click', (event) => {
         const button = event.target.closest('button.btn-action');
         if (button) {
@@ -332,6 +332,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Initial data load
     refreshAllData();
 });
