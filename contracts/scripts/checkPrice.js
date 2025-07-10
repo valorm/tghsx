@@ -1,11 +1,10 @@
 const { ethers } = require("ethers");
 
-// IMPORTANT: Updated with the RPC URL for your local Hardhat Network
-const RPC = "http://127.0.0.1:8545"; 
+// Use environment variable for RPC URL, with fallback to local
+const RPC = process.env.AMOY_RPC_URL || process.env.LOCAL_RPC_URL || "http://127.0.0.1:8545";
 
-// IMPORTANT: Updated with your locally deployed contract addresses
-const ethUsdAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-const usdGhsAddress = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+const ethUsdAddress = "0xAeA34E4D05ADefA2477E656096436F0892CCE024";
+const usdGhsAddress = "0x70816E2a459d77B2ba1332cB5495eF594e1AC9F1";
 
 const abi = [
   "function latestRoundData() view returns (uint80, int256, uint256, uint256, uint80)",
@@ -58,18 +57,19 @@ async function main() {
     try {
       const network = await provider.getNetwork();
       console.log(`🌐 Connected to network: ${network.name || 'Unknown'} (Chain ID: ${network.chainId})`);
+      console.log(`🌐 Using RPC: ${RPC}`);
     } catch (error) {
       console.log(`🌐 Connected to RPC at ${RPC} (network details unavailable or connection issue)`);
-      console.log("Please ensure your local Hardhat node is running (npx hardhat node).");
+      console.log("Connection error:", error.message);
       return; // Exit if provider can't connect meaningfully
     }
 
     console.log("\n--- Fetching Price Data ---");
     
-    // Check if placeholder addresses are still present (should not be now)
+    // Check if placeholder addresses are still present
     if (ethUsdAddress.includes("YOUR_DEPLOYED_") || usdGhsAddress.includes("YOUR_DEPLOYED_")) {
         console.warn("⚠️ Warning: Please update ethUsdAddress and usdGhsAddress in checkPrice.js with actual deployed contract addresses.");
-        console.warn("Run 'npx hardhat run scripts/deploy.ts --network localhost' and copy the addresses.");
+        console.warn("Run deployment script and copy the addresses.");
         return; // Exit to prevent errors with invalid addresses
     }
 
@@ -91,11 +91,11 @@ async function main() {
   } catch (error) {
     console.error("❌ Main error:", error.message);
     console.log("\n🔧 Troubleshooting tips:");
-    console.log("1. Ensure your local Hardhat node is running (npx hardhat node)");
-    console.log("2. Check your internet connection (if connecting to a public RPC)");
-    console.log("3. Verify the RPC URL is correct and accessible");
-    console.log("4. Make sure your contract addresses are correctly updated in checkPrice.js");
-    console.log("5. Ensure 'ethers' is installed: npm install ethers");
+    console.log("1. Ensure your RPC URL is correct and accessible");
+    console.log("2. Check your internet connection");
+    console.log("3. Verify the contract addresses are correctly deployed");
+    console.log("4. Make sure 'ethers' is installed: npm install ethers");
+    console.log("5. Check that AMOY_RPC_URL environment variable is set");
   }
 }
 
