@@ -1,5 +1,5 @@
 {
-  "_format": "hh-sol-artifact-1",
+  "_format": "hh-sol-artifact-1", 
   "contractName": "CollateralVault",
   "sourceName": "contracts/CollateralVault.sol",
   "abi": [
