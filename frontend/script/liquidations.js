@@ -8,9 +8,6 @@
  * ==================================================================================
  */
 
-// FIX: Removed duplicate declaration. This is now defined in shared-wallet.js
-// const BACKEND_URL = 'http://127.0.0.1:8000';
-
 const elements = {
     tableBody: document.getElementById('liquidationTableBody'),
     loadingState: document.getElementById('loadingState'),

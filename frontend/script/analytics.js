@@ -7,8 +7,6 @@
  * ==================================================================================
  */
 
-// const BACKEND_URL = 'http://127.0.0.1:8000';
-
 /**
  * Formats a number into a currency string with abbreviations (K, M).
  * @param {number|string} value - The numerical value.
