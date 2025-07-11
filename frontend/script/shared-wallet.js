@@ -1,10 +1,10 @@
 /**
  * ==================================================================================
- * Shared Wallet & App Logic (shared-wallet.js) - FINAL RESILIENCE FIXES V7
+ * Shared Wallet & App Logic (shared-wallet.js) - ERROR FIXES V8
  *
  * This script manages the global state for the tGHSX application.
- * This version includes advanced session recovery logic for mobile wallet
- * redirects by listening to focus events and using more robust session detection.
+ * This version includes a fix for the `removeAllListeners` TypeError and
+ * an updated Content Security Policy.
  * ==================================================================================
  */
 
@@ -199,8 +199,11 @@ function listenToProviderEvents() {
     const providerSource = appState.connectionType === 'metamask' ? window.ethereum : walletConnectProvider;
     if (!providerSource) return;
 
-    providerSource.removeAllListeners('accountsChanged');
-    providerSource.removeAllListeners('chainChanged');
+    // FIX: WalletConnect's provider may not have `removeAllListeners`. Check for it before calling.
+    if (typeof providerSource.removeAllListeners === 'function') {
+        providerSource.removeAllListeners('accountsChanged');
+        providerSource.removeAllListeners('chainChanged');
+    }
 
     providerSource.on('accountsChanged', (accounts) => {
         console.log("Event: accountsChanged", accounts);
