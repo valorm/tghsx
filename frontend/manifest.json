@@ -2,9 +2,9 @@
   "name": "tGHSX Protocol",
   "short_name": "tGHSX",
   "description": "The Synthetic Ghanaian Cedi, backed by Crypto.",
-  "start_url": "/app/index.html",
-  "display": "standalone",
-  "background_color": "#1a1a2e",
+ "start_url": "/frontend/app/index.html",
+"display": "standalone",
+"background_color": "#1a1a2e",
   "theme_color": "#1a1a2e",
   "orientation": "portrait-primary",
   "icons": [

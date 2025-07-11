@@ -139,6 +139,13 @@ async function connectWithWalletConnect() {
         console.log("WalletConnect provider not initialized, initializing now.");
         await initializeWalletConnect();
     }
+
+    if (walletConnectProvider.session) {
+        console.log("WalletConnect already connected. Handling session...");
+        await handleWalletConnectSession();
+        return;
+    }
+
     appState.isConnecting = true;
     updateWalletUI();
     try {
@@ -151,6 +158,7 @@ async function connectWithWalletConnect() {
         resetWalletState();
     }
 }
+
 
 async function setupProviderAndState(provider, account) {
     console.log(`Setting up provider for account: ${account}`);

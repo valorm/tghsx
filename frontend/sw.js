@@ -9,84 +9,87 @@
 
 const CACHE_NAME = 'tghsx-cache-v2';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/security.html',
-  '/learn.html',
-  '/guides.html',
-  '/governance.html',
-  '/css/style.css',
-  '/script/script.js',
-  '/logo.png',
-  '/favicon.png',
-  '/manifest.json',
-  '/sw.js',
+  '/frontend/',
+  '/frontend/index.html',
+  '/frontend/security.html',
+  '/frontend/learn.html',
+  '/frontend/guides.html',
+  '/frontend/governance.html',
+  '/frontend/css/style.css',
+  '/frontend/script/script.js',
+  '/frontend/logo.png',
+  '/frontend/favicon.png',
+  '/frontend/manifest.json',
+  '/frontend/sw.js',
 
-  // dApp Pages
-  '/app/index.html',
-  '/app/analytics.html',
-  '/app/liquidations.html',
-  '/app/Transaction.html',
-  '/app/auth.html',
-  '/app/admin.html',
+  '/frontend/app/index.html',
+  '/frontend/app/analytics.html',
+  '/frontend/app/liquidations.html',
+  '/frontend/app/transaction.html',
+  '/frontend/app/auth.html',
+  '/frontend/app/admin.html',
 
-  // dApp CSS
-  '/app/css/index-styles.css',
-  '/app/css/analytics-styles.css',
-  '/app/css/liquidations-styles.css',
-  '/app/css/transaction-styles.css',
-  '/app/css/auth-styles.css',
-  '/app/css/admin-styles.css',
+  '/frontend/css/index-styles.css',
+  '/frontend/css/analytics-styles.css',
+  '/frontend/css/liquidations-styles.css',
+  '/frontend/css/transaction-styles.css',
+  '/frontend/css/auth-styles.css',
+  '/frontend/css/admin-styles.css',
 
-  // dApp Scripts
-  '/app/script/shared-wallet.js',
-  '/app/script/index.js',
-  '/app/script/analytics.js',
-  '/app/script/liquidations.js',
-  '/app/script/transactions.js',
-  '/app/script/auth.js',
-  '/app/script/admin.js',
+  '/frontend/script/shared-wallet.js',
+  '/frontend/script/index.js',
+  '/frontend/script/analytics.js',
+  '/frontend/script/liquidations.js',
+  '/frontend/script/transactions.js',
+  '/frontend/script/auth.js',
+  '/frontend/script/admin.js',
 
-  // PWA Icons
-  '/images/icons/icon-192x192.png',
-  '/images/icons/icon-512x512.png'
+  '/frontend/images/icons/icon-192x192.png',
+  '/frontend/images/icons/icon-512x512.png'
 ];
 
 
 
+// ✅ Updated INSTALL handler with error logging
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Opened cache and caching app shell');
-        return cache.addAll(urlsToCache);
-      })
+    caches.open(CACHE_NAME).then(async cache => {
+      console.log('Installing... Opening cache');
+      try {
+        await cache.addAll(urlsToCache);
+        console.log('All files cached successfully!');
+      } catch (err) {
+        console.error('⚠️ cache.addAll failed:', err);
+        const results = await Promise.allSettled(
+          urlsToCache.map(url => cache.add(url))
+        );
+        results.forEach((res, i) => {
+          if (res.status === 'rejected') {
+            console.warn(`❌ Failed to cache: ${urlsToCache[i]}`);
+          }
+        });
+      }
+    })
   );
 });
 
-// Fetch event: serves cached content when available for faster loading.
+// Unchanged FETCH
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        // Not in cache - fetch from network
-        return fetch(event.request);
-      })
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request);
+    })
   );
 });
 
-// Activate event: removes old caches to keep the app updated.
+// Unchanged ACTIVATE
 self.addEventListener('activate', event => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
+          if (!cacheWhitelist.includes(cacheName)) {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
