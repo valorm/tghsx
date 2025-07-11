@@ -408,4 +408,9 @@ async function initializeApp() {
     setInterval(fetchProtocolStatus, 60000); 
 }
 
-document.addEventListener('DOMContentLoaded', initializeApp);
+(async () => {
+    await initializeWalletConnect();
+    await checkForExistingConnection();
+    document.addEventListener('DOMContentLoaded', initializeApp);
+})();
+
