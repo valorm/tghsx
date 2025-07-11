@@ -27,6 +27,7 @@ const CONFIG = {
         FALLBACK_PRICE: 25374.00,
     },
     UI: { DEBOUNCE_DELAY: 300, POLLING_INTERVAL: 5000 },
+    // FIX: Fallback gas units in case estimation fails.
     GAS_UNITS: { DEPOSIT_MINT: 180000, REPAY_WITHDRAW: 220000 },
 };
 
@@ -314,16 +315,53 @@ function updatePriceChangeIndicator() {
     elements.priceLastUpdated.textContent = `Updated: ${localState.lastPriceUpdate.toLocaleTimeString()}`;
 }
 
-function updateFeeEstimates() {
-    if (!localState.liveGasPrice || !localState.ethPriceGHS) return;
+// FIX: Updated function to dynamically estimate gas
+async function updateFeeEstimates() {
+    if (!localState.liveGasPrice || !localState.ethPriceGHS || !appState.collateralVaultContract) return;
+
     const gasPrice = ethers.BigNumber.from(localState.liveGasPrice);
-    const mintFeeInWei = gasPrice.mul(CONFIG.GAS_UNITS.DEPOSIT_MINT);
-    const mintFeeInEth = ethers.utils.formatEther(mintFeeInWei);
-    elements.mintFeeEstimate.textContent = `Est. Gas: ~${parseFloat(mintFeeInEth).toFixed(5)} ETH (${formatCurrency(parseFloat(mintFeeInEth) * localState.ethPriceGHS)})`;
-    const repayFeeInWei = gasPrice.mul(CONFIG.GAS_UNITS.REPAY_WITHDRAW);
-    const repayFeeInEth = ethers.utils.formatEther(repayFeeInWei);
-    elements.repayFeeEstimate.textContent = `Est. Gas: ~${parseFloat(repayFeeInEth).toFixed(5)} ETH (${formatCurrency(parseFloat(repayFeeInEth) * localState.ethPriceGHS)})`;
+
+    // --- Estimate Mint Fee ---
+    try {
+        const collateral = elements.collateralInput.value || '0';
+        const mint = elements.mintInput.value || '0';
+        let estimatedGasLimitMint = ethers.BigNumber.from(CONFIG.GAS_UNITS.DEPOSIT_MINT);
+
+        if (parseFloat(collateral) > 0 && parseFloat(mint) > 0) {
+            const collateralWei = ethers.utils.parseEther(collateral);
+            // Note: The actual on-chain function is `deposit`, not `depositAndMint`
+            estimatedGasLimitMint = await appState.collateralVaultContract.estimateGas.deposit({ value: collateralWei });
+        }
+        
+        const mintFeeInWei = gasPrice.mul(estimatedGasLimitMint);
+        const mintFeeInEth = ethers.utils.formatEther(mintFeeInWei);
+        elements.mintFeeEstimate.textContent = `Est. Gas: ~${parseFloat(mintFeeInEth).toFixed(5)} ETH (${formatCurrency(parseFloat(mintFeeInEth) * localState.ethPriceGHS)})`;
+    } catch (e) {
+        elements.mintFeeEstimate.textContent = 'Est. Gas: Unable to estimate';
+        console.warn("Could not estimate mint gas:", e.message);
+    }
+    
+    // --- Estimate Repay/Withdraw Fee ---
+    try {
+        const repay = elements.repayInput.value || '0';
+        const withdraw = elements.withdrawInput.value || '0';
+        let estimatedGasLimitRepay = ethers.BigNumber.from(CONFIG.GAS_UNITS.REPAY_WITHDRAW);
+
+        if (parseFloat(repay) > 0 || parseFloat(withdraw) > 0) {
+            const repayWei = ethers.utils.parseEther(repay);
+            const withdrawWei = ethers.utils.parseEther(withdraw);
+            estimatedGasLimitRepay = await appState.collateralVaultContract.estimateGas.repayAndWithdraw(repayWei, withdrawWei);
+        }
+
+        const repayFeeInWei = gasPrice.mul(estimatedGasLimitRepay);
+        const repayFeeInEth = ethers.utils.formatEther(repayFeeInWei);
+        elements.repayFeeEstimate.textContent = `Est. Gas: ~${parseFloat(repayFeeInEth).toFixed(5)} ETH (${formatCurrency(parseFloat(repayFeeInEth) * localState.ethPriceGHS)})`;
+    } catch (e) {
+        elements.repayFeeEstimate.textContent = 'Est. Gas: Unable to estimate';
+        console.warn("Could not estimate repay gas:", e.message);
+    }
 }
+
 
 function updateMintButtonState() {
     const collateralAmount = parseFloat(elements.collateralInput.value || '0');
@@ -349,7 +387,10 @@ function updateMintButtonState() {
     elements.mintButtonText.innerHTML = `<i class="fas fa-plus-circle"></i> ${text}`;
 }
 
-const debouncedCalculateRatio = debounce(calculateCollateralRatio, CONFIG.UI.DEBOUNCE_DELAY);
+const debouncedCalculateRatio = debounce(() => {
+    calculateCollateralRatio();
+    updateFeeEstimates(); // Also update fees when inputs change
+}, CONFIG.UI.DEBOUNCE_DELAY);
 
 function calculateCollateralRatio() {
     const collateralAmount = parseFloat(elements.collateralInput.value || '0');
