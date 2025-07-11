@@ -69,6 +69,24 @@ body {
     color: var(--text-primary);
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.nav-toggle {
+    display: none;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    z-index: 1001;
+    padding: 0.5rem;
+}
+
+
 /* General Button Styles */
 .btn {
     background: linear-gradient(45deg, var(--accent-primary), var(--accent-secondary));
@@ -443,6 +461,11 @@ main {
 .footer-badge { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; font-size: 0.9rem; }
 .footer-badge img { width: 24px; height: 24px; }
 
+/* Add a class to prevent body scroll when nav is open */
+.no-scroll {
+    overflow: hidden;
+}
+
 /* Responsive Design */
 @media (max-width: 992px) {
     .roadmap-container, .steps-container {
@@ -458,7 +481,59 @@ main {
     .page-title { font-size: 2.5rem; }
     .section-title { font-size: 2rem; }
     .footer-badges { flex-direction: column; gap: 1rem; align-items: center; }
-    .main-nav { display: none; /* Simple hiding for mobile, a JS-powered menu would be the next step */ }
     .container { padding: 0 1rem; }
     .header { padding: 1rem; }
+
+    /* --- MOBILE NAVIGATION STYLES START --- */
+    .nav-toggle {
+        display: block; /* Show hamburger */
+    }
+
+    .main-nav {
+        position: fixed;
+        top: 0;
+        right: -100%;
+        width: 100%;
+        height: 100vh;
+        background: rgba(13, 17, 23, 0.95);
+        backdrop-filter: blur(10px);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 2rem;
+        transition: right 0.4s ease-in-out;
+        z-index: 1000;
+    }
+
+    .main-nav.active {
+        right: 0;
+    }
+
+    .main-nav a {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 600;
+        opacity: 0; /* For staggered animation */
+        transform: translateY(20px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .main-nav.active a {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    /* Stagger the link animation */
+    .main-nav.active a:nth-child(1) { transition-delay: 0.2s; }
+    .main-nav.active a:nth-child(2) { transition-delay: 0.25s; }
+    .main-nav.active a:nth-child(3) { transition-delay: 0.3s; }
+    .main-nav.active a:nth-child(4) { transition-delay: 0.35s; }
+    .main-nav.active a:nth-child(5) { transition-delay: 0.4s; }
+
+    /* Hide the launch button in the header on mobile for a cleaner look */
+    .header .btn-launch {
+        display: none;
+    }
+    /* --- MOBILE NAVIGATION STYLES END --- */
 }

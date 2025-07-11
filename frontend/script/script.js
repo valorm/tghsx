@@ -116,4 +116,31 @@ document.addEventListener('DOMContentLoaded', () => {
     faqQuestions.forEach(question => {
         question.addEventListener('click', () => toggleFAQ(question));
     });
+
+    // --- NEW: Mobile Navigation Toggle ---
+    const navToggle = document.getElementById('nav-toggle');
+    const mainNav = document.getElementById('main-nav');
+    const navIcon = navToggle ? navToggle.querySelector('i') : null;
+
+    if (navToggle && mainNav && navIcon) {
+        navToggle.addEventListener('click', () => {
+            const isNavActive = mainNav.classList.toggle('active');
+            document.body.classList.toggle('no-scroll', isNavActive);
+
+            // Change icon from hamburger to 'X' and back
+            if (isNavActive) {
+                navIcon.classList.remove('fa-bars');
+                navIcon.classList.add('fa-times');
+                // Make toggle button fixed to stay in view over the menu
+                navToggle.style.position = 'fixed';
+                navToggle.style.right = '1rem';
+                navToggle.style.top = '1.25rem'; // Align with header padding
+            } else {
+                navIcon.classList.remove('fa-times');
+                navIcon.classList.add('fa-bars');
+                // Return toggle to its normal position in the document flow
+                navToggle.style.position = 'static';
+            }
+        });
+    }
 });
