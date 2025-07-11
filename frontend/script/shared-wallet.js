@@ -152,8 +152,10 @@ async function connectWithWalletConnect() {
 
     appState.isConnecting = true;
     updateWalletUI();
+
     try {
-        await walletConnectProvider.connect();
+        await walletConnectProvider.connect(); // <- RIGHT HERE
+        console.log("WalletConnect connect() called. Awaiting user approval..."); // 👈 ADD THIS LINE
     } catch (error) {
         console.error('Error during WalletConnect connection attempt:', error);
         if (!error.message.includes("Connection request reset")) {
@@ -162,6 +164,7 @@ async function connectWithWalletConnect() {
         resetWalletState();
     }
 }
+
 
 
 async function setupProviderAndState(provider, account) {
@@ -422,13 +425,11 @@ function initializeApp() {
     setInterval(fetchProtocolStatus, 60000); 
 }
 
-async function bootApp() {
-    await initializeWalletConnect();
-    await checkForExistingConnection();
-}
-
+(async () => {
+  await initializeWalletConnect();
+  await checkForExistingConnection();
+})();
 document.addEventListener('DOMContentLoaded', async () => {
-    await bootApp(); // Handles wallet session + setup early
-    initializeApp(); // Handles UI + event listeners
+  initializeApp(); // do NOT call bootApp here again
 });
 
