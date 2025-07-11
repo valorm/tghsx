@@ -408,9 +408,13 @@ function initializeApp() {
     setInterval(fetchProtocolStatus, 60000); 
 }
 
-// FIX: Implement the more reliable boot process
-(async () => {
+async function bootApp() {
     await initializeWalletConnect();
     await checkForExistingConnection();
-    document.addEventListener('DOMContentLoaded', initializeApp);
-})();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await bootApp(); // Handles wallet session + setup early
+    initializeApp(); // Handles UI + event listeners
+});
+
