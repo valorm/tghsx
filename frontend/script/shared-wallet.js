@@ -241,12 +241,14 @@ async function checkForExistingConnection() {
         if (!walletConnectProvider) await initializeWalletConnect();
 
         // Use `session` to recover session immediately after redirect
-        if (walletConnectProvider.session) {
-            console.log("WalletConnect session found. Restoring...");
-            await handleWalletConnectSession();
-        } else {
-            console.warn("WalletConnect session not found.");
-        }
+     const sessions = await walletConnectProvider?.client?.core?.session?.getAll();
+if (sessions && sessions.length > 0) {
+    console.log("Restoring WalletConnect session...");
+    await handleWalletConnectSession();
+} else {
+    console.warn("No WalletConnect session found.");
+}
+
     } else if (connectionType === 'metamask' && window.ethereum) {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         if (accounts.length > 0) {

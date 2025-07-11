@@ -1,55 +1,57 @@
 /**
  * ==================================================================================
- * Service Worker (sw.js) - v1
+ * Service Worker (sw.js) - v2
  *
  * This service worker handles caching for the entire frontend, including both
  * the marketing pages and the dApp, for a complete offline-first experience.
  * ==================================================================================
  */
 
-const CACHE_NAME = 'tghsx-cache-v1';
+const CACHE_NAME = 'tghsx-cache-v2';
 const urlsToCache = [
-  // Marketing Pages & Root Assets
   '/',
-  'index.html',
-  'security.html',
-  'learn.html',
-  'guides.html',
-  'governance.html',
-  'css/style.css',
-  'script/script.js',
-  'logo.png',
-  'favicon.png',
+  '/index.html',
+  '/security.html',
+  '/learn.html',
+  '/guides.html',
+  '/governance.html',
+  '/css/style.css',
+  '/script/script.js',
+  '/logo.png',
+  '/favicon.png',
+  '/manifest.json',
+  '/sw.js',
 
   // dApp Pages
-  'app/index.html',
-  'app/analytics.html',
-  'app/liquidations.html',
-  'app/Transaction.html',
-  'app/auth.html',
-  'app/admin.html',
+  '/app/index.html',
+  '/app/analytics.html',
+  '/app/liquidations.html',
+  '/app/Transaction.html',
+  '/app/auth.html',
+  '/app/admin.html',
 
   // dApp CSS
-  'app/css/index-styles.css',
-  'app/css/analytics-styles.css',
-  'app/css/liquidations-styles.css',
-  'app/css/transaction-styles.css',
-  'app/css/auth-styles.css',
-  'app/css/admin-styles.css',
+  '/app/css/index-styles.css',
+  '/app/css/analytics-styles.css',
+  '/app/css/liquidations-styles.css',
+  '/app/css/transaction-styles.css',
+  '/app/css/auth-styles.css',
+  '/app/css/admin-styles.css',
 
   // dApp Scripts
-  'app/script/shared-wallet.js',
-  'app/script/index.js',
-  'app/script/analytics.js',
-  'app/script/liquidations.js',
-  'app/script/transactions.js',
-  'app/script/auth.js',
-  'app/script/admin.js',
+  '/app/script/shared-wallet.js',
+  '/app/script/index.js',
+  '/app/script/analytics.js',
+  '/app/script/liquidations.js',
+  '/app/script/transactions.js',
+  '/app/script/auth.js',
+  '/app/script/admin.js',
 
-  // Key PWA Icons
-  'images/icons/icon-192x192.png',
-  'images/icons/icon-512x512.png'
+  // PWA Icons
+  '/images/icons/icon-192x192.png',
+  '/images/icons/icon-512x512.png'
 ];
+
 
 
 self.addEventListener('install', event => {
