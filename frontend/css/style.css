@@ -161,7 +161,8 @@ main {
 .faq-item,
 .disclaimer-content,
 .footer-badge,
-.guide-section {
+.guide-section,
+.concept-card {
     background-color: var(--surface-1);
     border: 1px solid var(--border-color);
     backdrop-filter: blur(10px);
@@ -181,12 +182,12 @@ main {
     gap: 1rem;
 }
 
-.content-section p, .content-section li, .guide-section p, .guide-section li {
+.content-section p, .content-section li, .guide-section p, .guide-section li, .concept-card p {
     margin-bottom: 1rem;
     color: var(--text-secondary);
 }
 
-.content-section strong, .guide-section strong {
+.content-section strong, .guide-section strong, .concept-card strong {
     color: var(--text-primary);
     font-weight: 600;
 }
@@ -228,7 +229,8 @@ main {
 /* Grids for Features, Transparency, etc. */
 .features-grid,
 .transparency-grid,
-.security-grid {
+.security-grid,
+.concepts-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 2rem;
@@ -236,14 +238,16 @@ main {
 
 .feature-card,
 .transparency-card,
-.security-card {
+.security-card,
+.concept-card {
     display: flex;
     flex-direction: column;
 }
 
 .feature-card:hover,
 .transparency-card:hover,
-.security-card:hover {
+.security-card:hover,
+.concept-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
     border-color: rgba(255, 107, 157, 0.5);
@@ -448,6 +452,66 @@ main {
 }
 .info-box p:last-child { margin-bottom: 0; }
 
+/* Learn Page Specific */
+.concepts-grid {
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+}
+
+.concept-card h3 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.concept-card .example {
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--accent-blue);
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+.warning-box {
+    background-color: rgba(243, 156, 18, 0.1);
+    border-left: 4px solid var(--accent-orange);
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin: 1.5rem 0;
+}
+
+.warning-box h4 {
+    color: var(--accent-orange);
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.warning-box ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.warning-box li {
+    position: relative;
+    padding-left: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.warning-box li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--accent-orange);
+}
+
+
 /* Footer (Shared) */
 .footer {
     text-align: center;
@@ -530,6 +594,7 @@ main {
     .main-nav.active a:nth-child(3) { transition-delay: 0.3s; }
     .main-nav.active a:nth-child(4) { transition-delay: 0.35s; }
     .main-nav.active a:nth-child(5) { transition-delay: 0.4s; }
+    .main-nav.active a:nth-child(6) { transition-delay: 0.45s; }
 
     /* Hide the launch button in the header on mobile for a cleaner look */
     .header .btn-launch {

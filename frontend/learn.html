@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn - tGHSX Protocol</title>
+    <link rel="icon" href="favicon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .logo-img {
+            height: 50px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Section -->
+    <header class="header container">
+        <a href="index.html" class="logo">
+            <img src="logo.png" alt="tGHSX Logo" class="logo-img">
+        </a>
+        <nav class="main-nav" id="main-nav">
+             <a href="index.html#features">Features</a>
+             <a href="index.html#how-it-works">How It Works</a>
+             <a href="governance.html">Governance</a>
+             <a href="security.html">Security</a>
+             <a href="learn.html">Learn</a>
+             <a href="guides.html">Guides</a>
+        </nav>
+        <div class="header-actions">
+            <a href="app/auth.html" class="btn btn-launch">
+                <i class="fas fa-rocket"></i> Launch App
+            </a>
+            <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <h1 class="page-title">Learn About the tGHSX Protocol</h1>
+        <p class="page-subtitle">Your guide to understanding the core concepts of decentralized finance and how tGHSX works.</p>
+
+        <!-- Core Concepts Section -->
+        <section id="core-concepts" class="section">
+            <h2 class="section-title">Core DeFi Concepts</h2>
+            <div class="concepts-grid">
+                <!-- What is a Stablecoin? -->
+                <div class="concept-card">
+                    <h3><i class="fas fa-anchor"></i> What is a Stablecoin?</h3>
+                    <p>A stablecoin is a type of cryptocurrency designed to have a stable value. Unlike other cryptocurrencies like Bitcoin or Ethereum which can be very volatile, stablecoins aim to hold their price steady.</p>
+                    <p>tGHSX is a <strong>synthetic stablecoin</strong> soft-pegged to the Ghanaian Cedi (GHS). This means the protocol aims to keep the value of 1 tGHSX as close to 1 GHS as possible, making it a reliable digital asset for payments, savings, and trading in the Ghanaian context.</p>
+                </div>
+
+                <!-- What is a Vault? -->
+                <div class="concept-card">
+                    <h3><i class="fas fa-box-open"></i> What is a Vault?</h3>
+                    <p>A Vault is your personal, secure smart contract on the blockchain. Think of it as your own digital safe where you can lock up cryptocurrency collateral (like ETH) in order to borrow tGHSX stablecoins against it.</p>
+                    <p>Each vault is independent and controlled only by its owner (you!). You are always in full control of your deposited funds. The tGHSX protocol cannot access your collateral unless your vault's health becomes critical (see Liquidation).</p>
+                </div>
+
+                <!-- What is a Collateralization Ratio? -->
+                <div class="concept-card">
+                    <h3><i class="fas fa-percentage"></i> What is a Collateralization Ratio?</h3>
+                    <p>This is the most important metric for managing the health of your vault. It measures the relationship between the value of your deposited collateral and the value of your borrowed tGHSX debt.</p>
+                    <p>It's calculated as: <strong>(Value of Collateral in GHS) / (Value of Debt in GHS) * 100</strong></p>
+                    <div class="example">
+                        <strong>Example:</strong> If you deposit 150 GHS worth of ETH and borrow 100 tGHSX, your collateralization ratio is (150 / 100) * 100 = <strong>150%</strong>. The tGHSX protocol requires you to maintain a ratio of at least 150% at all times. A higher ratio is always safer!
+                    </div>
+                </div>
+
+                <!-- What is Liquidation? -->
+                <div class="concept-card">
+                    <h3><i class="fas fa-gavel"></i> What is Liquidation?</h3>
+                    <p>Liquidation is a safety mechanism that protects the tGHSX protocol and its users. If the value of your collateral drops and your collateralization ratio falls below the minimum requirement (e.g., 140%), your vault becomes eligible for liquidation.</p>
+                    <p>During liquidation, the protocol sells just enough of your collateral to repay your tGHSX debt plus a small penalty. This ensures that every tGHSX in circulation remains fully backed.</p>
+                    <div class="warning-box">
+                        <h4><i class="fas fa-shield-alt"></i> How to Avoid Liquidation</h4>
+                        <ul>
+                            <li><strong>Monitor your ratio:</strong> Keep a close eye on your vault's health, especially during market volatility.</li>
+                            <li><strong>Repay your debt:</strong> Repay some or all of your borrowed tGHSX to increase your ratio.</li>
+                            <li><strong>Add more collateral:</strong> Deposit more ETH into your vault to increase your ratio.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How-to Guides Section -->
+        <section id="how-to-guides" class="section">
+            <h2 class="section-title">Step-by-Step Guides</h2>
+            
+            <!-- Getting Started Guide -->
+            <div class="guide-section">
+                <h2><i class="fas fa-rocket"></i> Getting Started: Prerequisites</h2>
+                <p>Before you begin, please ensure you have the following set up:</p>
+                <ol>
+                    <li><strong>MetaMask Wallet:</strong> A web3 wallet like <a href="https://metamask.io/" target="_blank" rel="noopener noreferrer">MetaMask</a> installed in your browser.</li>
+                    <li><strong>Amoy Testnet Configured:</strong> Your MetaMask wallet must be connected to the Polygon Amoy testnet.</li>
+                    <li><strong>Amoy ETH:</strong> You need Amoy ETH to pay for gas fees. You can get some from a public <a href="https://faucet.polygon.technology/" target="_blank" rel="noopener noreferrer">Amoy faucet</a>.</li>
+                </ol>
+            </div>
+
+            <!-- Minting Guide -->
+            <div class="guide-section">
+                <h2><i class="fas fa-coins"></i> Depositing Collateral & Borrowing tGHSX</h2>
+                <p>Borrowing tGHSX is a single, efficient transaction where you deposit ETH and borrow tGHSX simultaneously.</p>
+                <ol>
+                    <li>On the dashboard, locate the <strong>"Borrow tGHSX"</strong> card.</li>
+                    <li>In the <strong class="code">Deposit ETH</strong> field, enter the amount of ETH you wish to use as collateral.</li>
+                    <li>In the <strong class="code">Borrow tGHSX</strong> field, enter the amount of tGHSX stablecoins you want to borrow.</li>
+                    <li>Observe the <strong class="code">Collateralization Ratio</strong> display. To proceed, this ratio must be above the <strong>150% minimum</strong>. A higher ratio is safer and reduces your risk of liquidation.</li>
+                    <li>Click the <strong class="code">Deposit & Borrow</strong> button.</li>
+                    <li>MetaMask will ask you to approve the on-chain transaction. Confirm it to complete the process.</li>
+                </ol>
+                <div class="info-box">
+                    <p><i class="fas fa-info-circle"></i> <strong>What happens next?</strong> Once your transaction is confirmed on the blockchain, the tGHSX tokens are minted directly to your wallet, and your vault position (collateral and debt) will appear in the "Your Vault" card.</p>
+                </div>
+            </div>
+
+            <!-- Vault Management Guide -->
+            <div class="guide-section">
+                <h2><i class="fas fa-tachometer-alt"></i> Repaying Debt & Withdrawing Collateral</h2>
+                <p>The <strong>"Your Vault"</strong> card gives you a complete, real-time overview of your position's health and tools to manage it.</p>
+                <ol>
+                    <li>In the "Your Vault" card, use the <strong class="code">Repay & Withdraw</strong> section.</li>
+                    <li>To repay your loan, enter an amount in the <strong class="code">Repay tGHSX</strong> field. You can click <strong class="code">MAX</strong> to repay your entire debt. This will increase your collateralization ratio.</li>
+                    <li>To get your collateral back, enter an amount in the <strong class="code">Withdraw ETH</strong> field. You can only withdraw collateral if your resulting collateralization ratio remains safely above the 150% minimum.</li>
+                    <li>Click the <strong class="code">Repay & Withdraw</strong> button and approve the transaction in MetaMask.</li>
+                </ol>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer Section -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-badges">
+                <div class="footer-badge">
+                    <img src="https://amoy.polygonscan.com/assets/poly/images/svg/logos/chain-light.svg" alt="Polygon Icon">
+                    <span>Built on Polygon</span>
+                </div>
+                <div class="footer-badge">
+                    <img src="https://s2.coinmarketcap.com/static/img/coins/64x64/1975.png" alt="Chainlink Icon">
+                    <span>Secured by Chainlink</span>
+                </div>
+            </div>
+            <p>&copy; 2025 tGHSX Protocol. All rights reserved.</p>
+        </div>
+    </footer>
+    <script src="script/script.js" defer></script>
+</body>
+</html>
