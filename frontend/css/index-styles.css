@@ -645,6 +645,7 @@ body {
     opacity: 1;
 }
 
+/* FIX: Consolidated and improved modal styles for responsiveness and scrolling */
 .risk-modal-overlay, .confirmation-modal, .modal-overlay {
     position: fixed;
     top: 0;
@@ -655,12 +656,13 @@ body {
     backdrop-filter: blur(8px);
     display: none;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start; /* Align to top to allow scrolling */
     z-index: 2000;
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.4s ease, visibility 0.4s ease;
-    padding: 1rem;
+    padding: 2rem 1rem; /* Add padding for mobile view */
+    overflow-y: auto; /* Allow the overlay to scroll */
 }
 
 .risk-modal-overlay.show, .confirmation-modal.active, .modal-overlay.show {
@@ -673,16 +675,18 @@ body {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 20px;
-    padding: 2.5rem;
-    width: 90%;
+    width: 100%;
     max-width: 600px;
+    margin: auto; /* Center horizontally and allow vertical margin */
     transform: translateY(20px);
     transition: transform 0.4s ease;
+    display: flex; /* Use flexbox for layout */
+    flex-direction: column;
+    max-height: calc(100vh - 4rem); /* Ensure modal doesn't exceed viewport height */
 }
 
 .confirmation-content, .modal-content {
     max-width: 500px;
-    padding: 1.5rem;
 }
 
 .risk-modal-overlay.show .risk-modal,
@@ -697,6 +701,7 @@ body {
     text-align: center;
     margin-bottom: 1.5rem;
     color: #ef4444; 
+    padding: 1.5rem 1.5rem 0 1.5rem; /* Add padding to header/title areas */
 }
 
 .risk-modal-title .beta-tag {
@@ -710,13 +715,12 @@ body {
     vertical-align: middle;
 }
 
+/* FIX: Make risk list and confirmation body scrollable */
 .risk-list {
     list-style-type: none;
-    padding-left: 0;
+    padding: 0 1.5rem;
     margin: 1.5rem 0;
-    max-height: 200px;
-    overflow-y: auto;
-    padding-right: 1rem; 
+    overflow-y: auto; /* Allow this specific part to scroll */
     font-size: 0.95rem;
     line-height: 1.6;
     color: rgba(255, 255, 255, 0.8);
@@ -738,7 +742,7 @@ body {
 .checkbox-container {
     display: flex;
     align-items: center;
-    margin: 2rem 0;
+    margin: 2rem 1.5rem;
     background: rgba(255, 255, 255, 0.05);
     padding: 1rem;
     border-radius: 12px;
@@ -749,6 +753,7 @@ body {
     height: 20px;
     accent-color: #ff6b9d;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .checkbox-container label {
@@ -761,6 +766,7 @@ body {
     display: flex;
     gap: 1rem;
     justify-content: center;
+    padding: 0 1.5rem 1.5rem 1.5rem;
 }
 
 .modal-btn {
@@ -791,6 +797,7 @@ body {
     margin-top: 2rem;
     text-align: center;
     opacity: 0.6;
+    padding: 0 1.5rem 1.5rem 1.5rem;
 }
 .modal-footer p {
     font-size: 0.8rem;
@@ -897,12 +904,14 @@ body {
     margin-top: 0.25rem;
 }
 
+/* FIX: Make confirmation modal header and footer sticky */
 .confirmation-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 1.5rem; 
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0; /* Prevent shrinking */
 }
 
 .confirmation-title {
@@ -919,7 +928,11 @@ body {
 }
 .confirmation-close-btn:hover { color: white; }
 
-.confirmation-body { padding: 1.5rem; }
+/* FIX: Make confirmation body scrollable */
+.confirmation-body { 
+    padding: 1.5rem; 
+    overflow-y: auto; /* Allow this section to scroll */
+}
 .confirmation-body > * + * { margin-top: 1.5rem; }
 
 .summary-card {
@@ -999,11 +1012,13 @@ body {
     color: #94a3b8;
 }
 
+/* FIX: Make confirmation modal footer sticky */
 .confirmation-footer {
     display: flex;
     gap: 0.75rem;
     padding: 1.5rem;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0; /* Prevent shrinking */
 }
 
 .confirmation-footer button {
@@ -1069,7 +1084,6 @@ body {
 /* --- Connection Modal Styles --- */
 #connectionModal .modal-content {
     max-width: 450px;
-    padding: 2.5rem;
 }
 
 #connectionModal .modal-title {
@@ -1142,7 +1156,14 @@ body {
     .hero-title { font-size: 2.2rem; }
     .input-row { grid-template-columns: 1fr; }
     .status-bar { flex-direction: column; align-items: stretch; gap: 0.5rem; }
-    .risk-modal, .confirmation-content, .modal-content { padding: 1.5rem; }
+    
+    /* FIX: Reduce padding on mobile for modals */
+    .risk-modal, .confirmation-content, .modal-content { 
+        padding: 1rem; 
+    }
+    .confirmation-header, .confirmation-footer, .modal-buttons, .modal-footer {
+        padding: 1rem;
+    }
     .risk-modal-title { font-size: 1.5rem; }
     .modal-buttons { flex-direction: column; }
     .preset-buttons { flex-wrap: wrap; }
