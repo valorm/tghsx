@@ -1,14 +1,16 @@
 /**
  * ==================================================================================
- * Shared Wallet & App Logic (shared-wallet.js) - ERROR FIXES V8
+ * Shared Wallet & App Logic (shared-wallet.js) - PATCHED V9
  *
  * This script manages the global state for the tGHSX application.
- * This version includes a fix for the `removeAllListeners` TypeError and
- * an updated Content Security Policy.
+ * This version includes critical patches for WalletConnect session handling:
+ * - Upgraded to ethereum-provider v2.13.0.
+ * - Added a guarded listener for `session_update` events.
+ * - Refined the window `focus` listener for safer session recovery.
  * ==================================================================================
  */
 
-import EthereumProvider from 'https://esm.sh/@walletconnect/ethereum-provider@2.11.0';
+import EthereumProvider from 'https://esm.sh/@walletconnect/ethereum-provider@2.13.0';
 
 // --- Configuration ---
 const NETWORKS = {
@@ -40,7 +42,6 @@ let walletConnectProvider = null;
 
 /**
  * Initializes the WalletConnect provider and sets up crucial event listeners.
- * Includes metadata for reliable mobile wallet redirection.
  */
 async function initializeWalletConnect() {
     console.log("Initializing WalletConnect...");
@@ -60,16 +61,25 @@ async function initializeWalletConnect() {
         });
 
         walletConnectProvider.on('session_proposal', (proposal) => {
-            console.log('WalletConnect Event: session_proposal received.', proposal);
+            console.log('[WalletConnect] Event: session_proposal received.', proposal);
+        });
+
+        // PATCH: Add a guarded listener for session_update to prevent crashes.
+        walletConnectProvider.on('session_update', (params) => {
+            if (!params || !params.namespaces) {
+                console.warn('[WalletConnect] Skipping empty session_update payload');
+                return;
+            }
+            console.log('[WalletConnect] Event: session_update received.', params);
         });
 
         walletConnectProvider.on('connect', (session) => {
-            console.log('WalletConnect Event: connect received.', session);
+            console.log('[WalletConnect] Event: connect received.', session);
             handleWalletConnectSession();
         });
 
         walletConnectProvider.on("disconnect", () => {
-            console.log("WalletConnect Event: disconnect received.");
+            console.log("[WalletConnect] Event: disconnect received.");
             resetWalletState();
         });
 
@@ -199,7 +209,6 @@ function listenToProviderEvents() {
     const providerSource = appState.connectionType === 'metamask' ? window.ethereum : walletConnectProvider;
     if (!providerSource) return;
 
-    // FIX: WalletConnect's provider may not have `removeAllListeners`. Check for it before calling.
     if (typeof providerSource.removeAllListeners === 'function') {
         providerSource.removeAllListeners('accountsChanged');
         providerSource.removeAllListeners('chainChanged');
@@ -262,7 +271,6 @@ function resetWalletState() {
 async function checkForExistingConnection() {
     console.log("Checking for existing connection...");
 
-    // Most important check for mobile redirects: if a WC session exists but app state is not set, handle it.
     if (walletConnectProvider?.session && !appState.userAccount) {
         console.log("Found active WalletConnect session on check. Attempting to handle...");
         await handleWalletConnectSession();
@@ -274,7 +282,6 @@ async function checkForExistingConnection() {
 
     if (connectionType === 'walletconnect') {
         if (!walletConnectProvider) await initializeWalletConnect();
-        // Fallback for sessions from persistent storage
         const sessions = await walletConnectProvider?.client?.core?.session?.getAll();
         if (sessions && sessions.length > 0 && !appState.userAccount) {
             console.log("Restoring WalletConnect session from persistent storage...");
@@ -388,10 +395,6 @@ export function getErrorMessage(error) {
     return 'An unexpected error occurred. Please try again.';
 }
 
-/**
- * Enhanced visibility change handler to re-check connection status.
- * Includes a retry mechanism for slower mobile environments.
- */
 function handleVisibilityChange() {
     if (!document.hidden && !appState.userAccount) {
         console.log('Page became visible, re-checking connection status.');
@@ -401,7 +404,7 @@ function handleVisibilityChange() {
                 console.log('Retrying connection check after delay...');
                 checkForExistingConnection();
             }
-        }, 2000); // retry after 2s
+        }, 2000);
     }
 }
 
@@ -447,28 +450,25 @@ function initializeApp() {
     
     document.addEventListener('visibilitychange', handleVisibilityChange, false);
     
-    // NEW: Add focus event listener for mobile redirect scenarios
-    window.addEventListener("focus", () => {
-        if (!appState.userAccount) {
-            console.log("[Focus] Checking for wallet session on refocus");
+    // PATCH: Refined focus listener for safer session recovery.
+    window.addEventListener('focus', () => {
+        console.log('[Focus] Checking for wallet session on refocus');
+        if (!appState.userAccount || !appState.provider) {
             checkForExistingConnection();
         }
     });
 
-    // Initial UI update based on pre-DOM connection check
     updateWalletUI();
     setInterval(fetchProtocolStatus, 60000); 
 }
 
 // --- Pre-DOM Initialization ---
-// Initialize WalletConnect and check for existing sessions before the DOM is fully loaded.
 (async () => {
   await initializeWalletConnect();
   await checkForExistingConnection();
 })();
 
 // --- DOM-Ready Initialization ---
-// Set up event listeners and UI elements once the DOM is ready.
 document.addEventListener('DOMContentLoaded', () => {
   initializeApp();
 });
