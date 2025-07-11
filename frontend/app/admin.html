@@ -3,9 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- FIX: Updated CSP to allow WalletConnect WebSocket connections -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx.onrender.com wss://relay.walletconnect.com wss://relay.walletconnect.org; img-src 'self' https://explorer-api.walletconnect.com;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx.onrender.com wss://relay.walletconnect.com wss://relay.walletconnect.org; img-src 'self' https://explorer-api.walletconnect.com;">
     <link rel="icon" href="../favicon.png" type="image/png">
+
+    <link rel="manifest" href="../manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="tGHSX">
+    <link rel="apple-touch-icon" href="../images/icons/icon-192x192.png">
+
     <title>Admin Dashboard - tGHSX</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -104,5 +112,13 @@
 
     <script type="module" src="../script/shared-wallet.js" defer></script>
     <script type="module" src="../script/admin.js" defer></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('../sw.js').then(reg => console.log('SW registered for dApp page!'));
+            });
+        }
+    </script>
 </body>
 </html>

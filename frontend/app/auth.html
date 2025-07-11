@@ -4,13 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <!-- Content Security Policy (CSP) -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx.onrender.com; img-src 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx.onrender.com; img-src 'self';">
     
     <link rel="icon" href="../favicon.png" type="image/png">
+
+    <link rel="manifest" href="../manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="tGHSX">
+    <link rel="apple-touch-icon" href="../images/icons/icon-192x192.png">
+
     <title>Login - tGHSX</title>
     
-    <!-- Font Awesome with SRI -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
           xintegrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
           crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -28,8 +35,8 @@
 
     <div class="auth-container">
         <div class="card">
-            <a href="index.html" class="card-logo">
-                <img src="../logo.png" alt="tGHSX Logo">
+            <a href="../index.html" class="card-logo">
+                <img src="../logo.png" alt="tGHSX Logo" style="height: 64px;">
             </a>
 
             <div id="loginForm">
@@ -66,5 +73,13 @@
     <div id="toastNotification" class="toast"></div>
 
     <script src="../script/auth.js" defer></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('../sw.js').then(reg => console.log('SW registered for dApp page!'));
+            });
+        }
+    </script>
 </body>
 </html>

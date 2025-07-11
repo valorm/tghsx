@@ -3,8 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx.onrender.com wss://relay.walletconnect.com https://explorer-api.walletconnect.com; img-src 'self' https://amoy.polygonscan.com https://s2.coinmarketcap.com https://explorer-api.walletconnect.com;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx.onrender.com wss://relay.walletconnect.com https://explorer-api.walletconnect.com; img-src 'self' https://amoy.polygonscan.com https://s2.coinmarketcap.com https://explorer-api.walletconnect.com;">
     <link rel="icon" href="../favicon.png" type="image/png">
+    
+    <link rel="manifest" href="../manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="tGHSX">
+    <link rel="apple-touch-icon" href="../images/icons/icon-192x192.png">
+
     <title>Analytics - tGHSX Protocol</title>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js" integrity="sha256-+8RZJua0aEWg+QVVKg4LEzEEm/8RFez5Tb4JBNiV5xA=" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
@@ -22,8 +31,8 @@
     </div>
     <nav class="navbar">
         <div class="navbar-container container">
-            <a href="index.html" class="logo">
-                <img src="../logo.png" alt="tGHSX Logo">
+            <a href="../index.html" class="logo">
+                <img src="../logo.png" alt="tGHSX Logo" style="height: 50px;">
             </a>
             <button class="menu-toggle" id="menu-toggle">
                 <i class="fas fa-bars"></i>
@@ -76,7 +85,6 @@
         </div>
     </footer>
 
-    <!-- FIX: Added Connection Modal to this page -->
     <div id="connectionModal" class="modal-overlay">
         <div class="modal-content">
             <h3 class="modal-title">Connect a Wallet</h3>
@@ -99,5 +107,13 @@
 
     <script type="module" src="../script/shared-wallet.js" defer></script>
     <script type="module" src="../script/analytics.js" defer></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('../sw.js').then(reg => console.log('SW registered for dApp page!'));
+            });
+        }
+    </script>
 </body>
 </html>

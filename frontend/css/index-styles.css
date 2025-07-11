@@ -645,6 +645,7 @@ body {
     opacity: 1;
 }
 
+/* FIX: Consolidated and improved modal styles for responsiveness and scrolling */
 .risk-modal-overlay, .confirmation-modal, .modal-overlay {
     position: fixed;
     top: 0;
@@ -714,6 +715,7 @@ body {
     vertical-align: middle;
 }
 
+/* FIX: Make risk list and confirmation body scrollable */
 .risk-list {
     list-style-type: none;
     padding: 0 1.5rem;
@@ -902,6 +904,7 @@ body {
     margin-top: 0.25rem;
 }
 
+/* FIX: Make confirmation modal header and footer sticky */
 .confirmation-header {
     display: flex;
     justify-content: space-between;
@@ -925,6 +928,7 @@ body {
 }
 .confirmation-close-btn:hover { color: white; }
 
+/* FIX: Make confirmation body scrollable */
 .confirmation-body { 
     padding: 1.5rem; 
     overflow-y: auto; /* Allow this section to scroll */
@@ -1008,6 +1012,7 @@ body {
     color: #94a3b8;
 }
 
+/* FIX: Make confirmation modal footer sticky */
 .confirmation-footer {
     display: flex;
     gap: 0.75rem;
@@ -1152,6 +1157,7 @@ body {
     .input-row { grid-template-columns: 1fr; }
     .status-bar { flex-direction: column; align-items: stretch; gap: 0.5rem; }
     
+    /* FIX: Reduce padding on mobile for modals */
     .risk-modal, .confirmation-content, .modal-content { 
         padding: 1rem; 
     }
@@ -1182,7 +1188,6 @@ body {
         transition: transform 0.3s ease-in-out;
         transform: translateY(-100%);
         padding-top: 60px;
-        z-index: 1000; /* FIX: Ensure menu is on top */
     }
 
     .nav-menu.active {
