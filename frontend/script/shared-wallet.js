@@ -1,10 +1,9 @@
 /**
  * ==================================================================================
- * Shared Wallet & App Logic (shared-wallet.js) - MOBILE CONNECTION FIX V2
+ * Shared Wallet & App Logic (shared-wallet.js) - MOBILE CONNECTION FIX V3
  *
  * This script manages the global state for the tGHSX application.
- * This version includes a more robust, event-driven approach for WalletConnect
- * to ensure reliable connections on mobile browsers.
+ * This version includes the improved session restore logic for WalletConnect.
  * ==================================================================================
  */
 
@@ -40,7 +39,6 @@ let walletConnectProvider = null;
 
 /**
  * Initializes the WalletConnect provider and sets up crucial event listeners.
- * This is the core of the mobile connection fix.
  */
 async function initializeWalletConnect() {
     console.log("Initializing WalletConnect...");
@@ -51,10 +49,9 @@ async function initializeWalletConnect() {
             chains: [REQUIRED_CHAIN_ID],
             showQrModal: true,
             qrModalOptions: { themeMode: "dark" },
-            events: ['connect', 'disconnect', 'session_proposal'] // Explicitly listen for events
+            events: ['connect', 'disconnect', 'session_proposal']
         });
 
-        // --- Event-Driven Handlers for Reliability ---
         walletConnectProvider.on('session_proposal', (proposal) => {
             console.log('WalletConnect Event: session_proposal received.', proposal);
         });
@@ -144,14 +141,13 @@ async function connectWithWalletConnect() {
     appState.isConnecting = true;
     updateWalletUI();
     try {
-        // This triggers the QR modal or deep link. The 'connect' event listener will handle the rest.
         await walletConnectProvider.connect();
     } catch (error) {
         console.error('Error during WalletConnect connection attempt:', error);
-        if (!error.message.includes("Connection request reset")) { // Don't show toast if user just closes modal
+        if (!error.message.includes("Connection request reset")) {
             showToast(getErrorMessage(error), 'error');
         }
-        resetWalletState(); // Reset state if connection fails or is cancelled
+        resetWalletState();
     }
 }
 
@@ -210,7 +206,7 @@ async function checkNetwork() {
 
 export async function disconnectWallet() {
     console.log("Disconnecting wallet...");
-    if (appState.connectionType === 'walletconnect' && walletConnectProvider?.connected) {
+    if (appState.connectionType === 'walletconnect' && walletConnectProvider?.session) {
         await walletConnectProvider.disconnect();
     }
     resetWalletState();
@@ -235,19 +231,21 @@ function resetWalletState() {
     document.dispatchEvent(new Event('walletDisconnected'));
 }
 
+// FIX: Updated function to use .session for more reliable restore
 async function checkForExistingConnection() {
     console.log("Checking for existing connection...");
     const connectionType = localStorage.getItem('walletConnected');
-    if (!connectionType) {
-        console.log("No existing connection found in localStorage.");
-        return;
-    }
-    
+    if (!connectionType) return;
+
     if (connectionType === 'walletconnect') {
         if (!walletConnectProvider) await initializeWalletConnect();
-        if (walletConnectProvider.connected) {
-            console.log("Found existing WalletConnect session.");
+
+        // Use `session` to recover session immediately after redirect
+        if (walletConnectProvider.session) {
+            console.log("WalletConnect session found. Restoring...");
             await handleWalletConnectSession();
+        } else {
+            console.warn("WalletConnect session not found.");
         }
     } else if (connectionType === 'metamask' && window.ethereum) {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
