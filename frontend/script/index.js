@@ -12,7 +12,6 @@
  * ==================================================================================
  */
 
-// FIX: Importing shared state and functions from the module
 import { appState, showToast, getErrorMessage, BACKEND_URL } from './shared-wallet.js';
 
 const CONFIG = {
@@ -27,7 +26,7 @@ const CONFIG = {
         FALLBACK_PRICE: 25374.00,
     },
     UI: { DEBOUNCE_DELAY: 300, POLLING_INTERVAL: 5000 },
-    // FIX: Fallback gas units in case estimation fails.
+    // Fallback gas units in case estimation fails.
     GAS_UNITS: { DEPOSIT_MINT: 180000, REPAY_WITHDRAW: 220000 },
 };
 
@@ -38,7 +37,10 @@ let localState = {
     autoRefreshInterval: null,
     lastPriceUpdate: null,
     liveGasPrice: null,
-    currentTransaction: null
+    currentTransaction: null,
+    // FIX: Add state to store dynamically estimated gas fees
+    estimatedMintFeeMatic: '0',
+    estimatedRepayFeeMatic: '0'
 };
 
 const elements = {
@@ -315,28 +317,29 @@ function updatePriceChangeIndicator() {
     elements.priceLastUpdated.textContent = `Updated: ${localState.lastPriceUpdate.toLocaleTimeString()}`;
 }
 
-// FIX: Updated function to dynamically estimate gas
+// FIX: Updated function to dynamically estimate gas and use MATIC as the label.
 async function updateFeeEstimates() {
-    if (!localState.liveGasPrice || !localState.ethPriceGHS || !appState.collateralVaultContract) return;
+    if (!localState.liveGasPrice || !appState.collateralVaultContract) return;
 
     const gasPrice = ethers.BigNumber.from(localState.liveGasPrice);
-
+    
     // --- Estimate Mint Fee ---
     try {
         const collateral = elements.collateralInput.value || '0';
-        const mint = elements.mintInput.value || '0';
         let estimatedGasLimitMint = ethers.BigNumber.from(CONFIG.GAS_UNITS.DEPOSIT_MINT);
 
-        if (parseFloat(collateral) > 0 && parseFloat(mint) > 0) {
+        if (parseFloat(collateral) > 0) {
             const collateralWei = ethers.utils.parseEther(collateral);
-            // Note: The actual on-chain function is `deposit`, not `depositAndMint`
+            // The user's first on-chain action is depositing collateral.
             estimatedGasLimitMint = await appState.collateralVaultContract.estimateGas.deposit({ value: collateralWei });
         }
         
         const mintFeeInWei = gasPrice.mul(estimatedGasLimitMint);
-        const mintFeeInEth = ethers.utils.formatEther(mintFeeInWei);
-        elements.mintFeeEstimate.textContent = `Est. Gas: ~${parseFloat(mintFeeInEth).toFixed(5)} ETH (${formatCurrency(parseFloat(mintFeeInEth) * localState.ethPriceGHS)})`;
+        const mintFeeInMatic = ethers.utils.formatEther(mintFeeInWei);
+        localState.estimatedMintFeeMatic = mintFeeInMatic; // Store for confirmation modal
+        elements.mintFeeEstimate.textContent = `Est. Gas: ~${parseFloat(mintFeeInMatic).toFixed(5)} MATIC`;
     } catch (e) {
+        localState.estimatedMintFeeMatic = '0';
         elements.mintFeeEstimate.textContent = 'Est. Gas: Unable to estimate';
         console.warn("Could not estimate mint gas:", e.message);
     }
@@ -348,15 +351,18 @@ async function updateFeeEstimates() {
         let estimatedGasLimitRepay = ethers.BigNumber.from(CONFIG.GAS_UNITS.REPAY_WITHDRAW);
 
         if (parseFloat(repay) > 0 || parseFloat(withdraw) > 0) {
-            const repayWei = ethers.utils.parseEther(repay);
-            const withdrawWei = ethers.utils.parseEther(withdraw);
+            const repayWei = ethers.utils.parseEther(repay || '0');
+            const withdrawWei = ethers.utils.parseEther(withdraw || '0');
+            // FIX: Correctly estimate gas for repayAndWithdraw
             estimatedGasLimitRepay = await appState.collateralVaultContract.estimateGas.repayAndWithdraw(repayWei, withdrawWei);
         }
 
         const repayFeeInWei = gasPrice.mul(estimatedGasLimitRepay);
-        const repayFeeInEth = ethers.utils.formatEther(repayFeeInWei);
-        elements.repayFeeEstimate.textContent = `Est. Gas: ~${parseFloat(repayFeeInEth).toFixed(5)} ETH (${formatCurrency(parseFloat(repayFeeInEth) * localState.ethPriceGHS)})`;
+        const repayFeeInMatic = ethers.utils.formatEther(repayFeeInWei);
+        localState.estimatedRepayFeeMatic = repayFeeInMatic; // Store for confirmation modal
+        elements.repayFeeEstimate.textContent = `Est. Gas: ~${parseFloat(repayFeeInMatic).toFixed(5)} MATIC`;
     } catch (e) {
+        localState.estimatedRepayFeeMatic = '0';
         elements.repayFeeEstimate.textContent = 'Est. Gas: Unable to estimate';
         console.warn("Could not estimate repay gas:", e.message);
     }
@@ -464,19 +470,17 @@ async function showConfirmation(type, details) {
     const currentCollateral = parseFloat(elements.vaultCollateral.textContent) || 0;
     const currentDebt = parseFloat(elements.vaultDebt.textContent) || 0;
     const currentRatioText = elements.vaultRatio.textContent;
-    let newCollateral, newDebt, newRatio, feeInEth = 0;
-
-    if (localState.liveGasPrice) {
-        const gasPrice = ethers.BigNumber.from(localState.liveGasPrice);
-        const gasLimit = ethers.BigNumber.from(type === 'Mint' ? CONFIG.GAS_UNITS.DEPOSIT_MINT : CONFIG.GAS_UNITS.REPAY_WITHDRAW);
-        feeInEth = parseFloat(ethers.utils.formatEther(gasPrice.mul(gasLimit)));
-    }
-    elements.modalNetworkFee.textContent = `~${feeInEth.toFixed(6)} ETH`;
+    let newCollateral, newDebt, newRatio;
+    
+    // FIX: Use the dynamically estimated gas fee from localState
+    let feeInMatic = '0';
 
     if (type === 'Mint') {
         const { collateral, mint } = details;
         newCollateral = currentCollateral + parseFloat(collateral || 0);
         newDebt = currentDebt + parseFloat(mint || 0);
+        feeInMatic = localState.estimatedMintFeeMatic;
+        
         elements.modalAction.textContent = "Deposit & Mint";
         elements.modalSummary2Label.textContent = "Deposit ETH:";
         elements.modalSummary2Value.textContent = formatNumber(collateral || 0, 4);
@@ -489,15 +493,20 @@ async function showConfirmation(type, details) {
         const { repay, withdraw } = details;
         newCollateral = currentCollateral - parseFloat(withdraw || 0);
         newDebt = currentDebt - parseFloat(repay || 0);
+        feeInMatic = localState.estimatedRepayFeeMatic;
+
         elements.modalAction.textContent = "Repay & Withdraw";
         elements.modalSummary2Label.textContent = "Repay tGHSX:";
         elements.modalSummary2Value.textContent = formatNumber(repay || 0, 2);
         elements.modalSummary3Label.textContent = "Withdraw ETH:";
         elements.modalSummary3Value.textContent = formatNumber(withdraw || 0, 4);
         elements.modalReceiveContainer.classList.remove('hidden');
-        elements.modalYouReceive.textContent = `~${formatNumber(Math.max(0, parseFloat(withdraw || 0) - feeInEth), 4)} ETH`;
+        elements.modalYouReceive.textContent = `~${formatNumber(Math.max(0, parseFloat(withdraw || 0) - parseFloat(feeInMatic)), 4)} MATIC`;
         elements.modalRiskWarning.classList.add('hidden');
     }
+
+    // FIX: Changed label to MATIC and use the estimated fee
+    elements.modalNetworkFee.textContent = `~${parseFloat(feeInMatic).toFixed(6)} MATIC`;
 
     if (newDebt > 0 && newCollateral > 0 && localState.ethPriceGHS > 0) {
         newRatio = (newCollateral * localState.ethPriceGHS / newDebt) * 100;

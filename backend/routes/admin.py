@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import Dict, Any
 from web3 import Web3
-# FIX: Import PoA middleware
 from web3.middleware import geth_poa_middleware
 
 # Import project-specific services and utilities
@@ -15,13 +14,11 @@ from utils.utils import is_admin_user, load_contract_abi
 # --- Router and Environment Setup ---
 router = APIRouter()
 
-# Load contract details from environment variables
 COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
-MINTER_PRIVATE_KEY = os.getenv("MINTER_PRIVATE_KEY") # The owner key is needed for these actions
+MINTER_PRIVATE_KEY = os.getenv("MINTER_PRIVATE_KEY")
 if not COLLATERAL_VAULT_ADDRESS or not MINTER_PRIVATE_KEY:
     raise RuntimeError("Contract address or owner/minter key not set in environment.")
 
-# Load the contract ABI
 try:
     COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
 except Exception as e:
@@ -30,15 +27,23 @@ except Exception as e:
 # --- Helper function to send a transaction ---
 def send_admin_transaction(function_call):
     w3 = get_web3_provider()
-    # FIX: Inject PoA middleware to handle PoA chain specifics
     w3.middleware_onion.inject(geth_poa_middleware, layer=0)
     
     admin_account = w3.eth.account.from_key(MINTER_PRIVATE_KEY)
     
+    # FIX: Dynamically estimate the gas limit instead of hardcoding
+    try:
+        gas_estimate = function_call.estimate_gas({'from': admin_account.address})
+        # Add a buffer to the estimate (e.g., 20%) for safety
+        gas_limit = int(gas_estimate * 1.2)
+    except Exception as e:
+        print(f"Gas estimation failed: {e}. Falling back to a default limit.")
+        gas_limit = 200000 # Fallback gas limit
+
     tx_payload = {
         'from': admin_account.address,
         'nonce': w3.eth.get_transaction_count(admin_account.address),
-        'gas': 200000, # Set a reasonable gas limit for admin functions
+        'gas': gas_limit,
         'gasPrice': w3.eth.gas_price
     }
     
@@ -57,12 +62,10 @@ def send_admin_transaction(function_call):
 @router.get("/status", response_model=Dict[str, Any], dependencies=[Depends(is_admin_user)])
 async def get_contract_status():
     """
-    Fetches the current status of the CollateralVault contract, including
-    its paused state and immutable oracle addresses.
+    Fetches the current status of the CollateralVault contract.
     """
     try:
         w3 = get_web3_provider()
-        # FIX: Inject PoA middleware for read calls as well
         w3.middleware_onion.inject(geth_poa_middleware, layer=0)
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
         

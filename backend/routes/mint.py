@@ -13,7 +13,6 @@ from services.supabase_client import get_supabase_admin_client
 from services.oracle_service import get_eth_ghs_price
 from utils.utils import load_contract_abi, get_current_user, is_admin_user
 from web3 import Web3
-# FIX: Import PoA middleware
 from web3.middleware import geth_poa_middleware
 
 router = APIRouter()
@@ -52,9 +51,6 @@ class MintStatusResponse(BaseModel):
 
 # --- Telegram Alert Helper Function ---
 async def send_telegram_alert(message: str):
-    """
-    Sends a message to a specified Telegram chat using the bot token.
-    """
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("TELEGRAM ALERT SKIPPED: Bot token or chat ID not set.")
         return
@@ -178,14 +174,28 @@ async def approve_and_mint(
         amount_wei = int(amount_to_mint * (10**18))
 
         w3 = get_web3_provider()
-        # FIX: Inject PoA middleware to handle PoA chain specifics
         w3.middleware_onion.inject(geth_poa_middleware, layer=0)
         
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
         admin_account = w3.eth.account.from_key(MINTER_PRIVATE_KEY)
-        tx_payload = {'from': admin_account.address, 'nonce': w3.eth.get_transaction_count(admin_account.address)}
         
-        tx = vault_contract.functions.adminMintForUser(Web3.to_checksum_address(recipient_address), amount_wei).build_transaction(tx_payload)
+        # FIX: Dynamically estimate gas for the minting transaction
+        function_call = vault_contract.functions.adminMintForUser(Web3.to_checksum_address(recipient_address), amount_wei)
+        try:
+            gas_estimate = function_call.estimate_gas({'from': admin_account.address})
+            gas_limit = int(gas_estimate * 1.2)
+        except Exception as e:
+            print(f"Gas estimation failed for mint: {e}. Falling back to default.")
+            gas_limit = 300000 # A safe fallback for this specific function
+
+        tx_payload = {
+            'from': admin_account.address, 
+            'nonce': w3.eth.get_transaction_count(admin_account.address),
+            'gas': gas_limit,
+            'gasPrice': w3.eth.gas_price
+        }
+        
+        tx = function_call.build_transaction(tx_payload)
         signed_tx = w3.eth.account.sign_transaction(tx, private_key=MINTER_PRIVATE_KEY)
         tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
         tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)

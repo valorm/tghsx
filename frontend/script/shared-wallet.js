@@ -11,7 +11,7 @@
  * ==================================================================================
  */
 
-// FIX: Using a module-friendly CDN (esm.sh) to resolve the import error.
+// Using a module-friendly CDN (esm.sh) to resolve the import error.
 import EthereumProvider from 'https://esm.sh/@walletconnect/ethereum-provider@2.11.0';
 
 const NETWORKS = {
@@ -333,7 +333,8 @@ export function getErrorMessage(error) {
             case -32603: return 'Internal JSON-RPC error. The contract may have rejected the transaction.';
             case -32002: return 'Request already pending. Please check your wallet.';
             case 'UNPREDICTABLE_GAS_LIMIT': return 'Transaction cannot be completed. The collateral ratio is likely out of the allowed range.';
-            case 'INSUFFICIENT_FUNDS': return 'Your wallet has insufficient ETH for this transaction, including gas fees.';
+            // FIX: Corrected error message to refer to MATIC for gas fees.
+            case 'INSUFFICIENT_FUNDS': return 'Your wallet has insufficient MATIC for this transaction, including gas fees.';
         }
     }
     if (error.message) {
