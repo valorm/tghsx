@@ -1,9 +1,10 @@
 /**
  * ==================================================================================
- * Shared Wallet & App Logic (shared-wallet.js) - MOBILE CONNECTION FIX V3
+ * Shared Wallet & App Logic (shared-wallet.js) - MOBILE CONNECTION FIX V4
  *
  * This script manages the global state for the tGHSX application.
- * This version includes the improved session restore logic for WalletConnect.
+ * This version includes the improved session restore logic and pre-DOM
+ * initialization for WalletConnect.
  * ==================================================================================
  */
 
@@ -231,7 +232,6 @@ function resetWalletState() {
     document.dispatchEvent(new Event('walletDisconnected'));
 }
 
-// FIX: Updated function to use .session for more reliable restore
 async function checkForExistingConnection() {
     console.log("Checking for existing connection...");
     const connectionType = localStorage.getItem('walletConnected');
@@ -361,8 +361,8 @@ function handleVisibilityChange() {
     }
 }
 
-async function initializeApp() {
-    console.log("Initializing App...");
+function initializeApp() {
+    console.log("Initializing App (DOM Loaded)...");
     const token = localStorage.getItem('accessToken');
     const onAuthPage = window.location.pathname.endsWith('auth.html');
     if (!token && !onAuthPage) {
@@ -402,15 +402,15 @@ async function initializeApp() {
     }
     
     document.addEventListener('visibilitychange', handleVisibilityChange, false);
-    await initializeWalletConnect();
-    await checkForExistingConnection();
+    
+    // Initial UI update based on pre-DOM connection check
     updateWalletUI();
     setInterval(fetchProtocolStatus, 60000); 
 }
 
+// FIX: Implement the more reliable boot process
 (async () => {
     await initializeWalletConnect();
     await checkForExistingConnection();
     document.addEventListener('DOMContentLoaded', initializeApp);
 })();
-

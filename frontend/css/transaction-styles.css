@@ -375,6 +375,7 @@ body {
         transition: transform 0.3s ease-in-out;
         transform: translateY(-100%);
         padding-top: 60px;
+        z-index: 1000; /* FIX: Ensure menu is on top */
     }
 
     .nav-menu.active {
