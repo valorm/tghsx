@@ -93,6 +93,10 @@ async function handleWalletConnectSession() {
 
         const provider = new ethers.providers.Web3Provider(walletConnectProvider);
         await setupProviderAndState(provider, accounts[0]);
+        document.dispatchEvent(new Event('walletConnected'));
+        document.dispatchEvent(new CustomEvent('accountChanged', { detail: accounts[0] }));
+        document.dispatchEvent(new Event('networkConnected'));
+
     } catch (error) {
         console.error('Error processing WalletConnect session:', error);
         showToast(getErrorMessage(error), 'error');

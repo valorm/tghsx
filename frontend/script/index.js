@@ -789,10 +789,17 @@ function updateNetworkStatus(connected) {
     elements.networkName.textContent = connected && appState.networkName ? appState.networkName : 'Not Connected';
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    setupEventListeners();
-    setupRiskModal();
-    calculateCollateralRatio();
-    updateMintButtonState();
-    togglePresetButtons(false);
-});
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+  initializeApp();
+}
+
+function initializeApp() {
+  setupEventListeners();
+  setupRiskModal();
+  calculateCollateralRatio();
+  updateMintButtonState();
+  togglePresetButtons(false);
+}
+
