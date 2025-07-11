@@ -53,6 +53,8 @@ async function initializeWalletConnect() {
                 themeMode: "dark",
                 explorerRecommendedWalletIds: 'c57ca95b47569778a828d19178114f4db18e6954006d01c20f0de37c162d44cb',
             },
+            // FIX: Add listeners for mobile reliability
+            events: ['session_proposal', 'connect', 'disconnect']
         });
 
         walletConnectProvider.on("disconnect", () => {
@@ -60,11 +62,44 @@ async function initializeWalletConnect() {
             resetWalletState();
         });
 
+        // FIX: Handle session proposal event for mobile wallets
+        walletConnectProvider.on('session_proposal', (proposal) => {
+            console.log('WalletConnect session proposal received:', proposal);
+        });
+
+        walletConnectProvider.on('connect', (session) => {
+             console.log('WalletConnect connected:', session);
+             handleWalletConnectSession(session);
+        });
+
+
     } catch (e) {
         console.error("Failed to initialize WalletConnect provider", e);
         showToast("Could not start WalletConnect.", "error");
     }
 }
+
+// FIX: New function to handle successful WalletConnect session establishment
+async function handleWalletConnectSession() {
+    try {
+        const accounts = walletConnectProvider.accounts;
+        if (accounts.length === 0) throw new Error('No accounts found via WalletConnect.');
+
+        appState.connectionType = 'walletconnect';
+        localStorage.setItem('walletConnected', 'walletconnect');
+
+        const provider = new ethers.providers.Web3Provider(walletConnectProvider);
+        await setupProviderAndState(provider, accounts[0]);
+    } catch (error) {
+        console.error('Error handling WalletConnect session:', error);
+        showToast(getErrorMessage(error), 'error');
+        resetWalletState();
+    } finally {
+        appState.isConnecting = false;
+        updateWalletUI();
+    }
+}
+
 
 export function connectWallet() {
     const modal = document.getElementById('connectionModal');
@@ -112,18 +147,9 @@ async function connectWithWalletConnect() {
     updateWalletUI();
 
     try {
+        // The 'connect' event listener will handle the session setup
         await walletConnectProvider.connect();
-        const accounts = walletConnectProvider.accounts;
-        if (accounts.length === 0) throw new Error('No accounts found via WalletConnect.');
-
-        appState.connectionType = 'walletconnect';
-        localStorage.setItem('walletConnected', 'walletconnect');
-
-        const provider = new ethers.providers.Web3Provider(walletConnectProvider);
-        await setupProviderAndState(provider, accounts[0]);
-
     } catch (error) {
-        // Handle the case where the user closes the WalletConnect modal
         if (error.message && error.message.includes('Connection request reset')) {
             console.log('WalletConnect modal closed by user.');
         } else {
@@ -221,9 +247,13 @@ function resetWalletState() {
 async function checkForExistingConnection() {
     const connectionType = localStorage.getItem('walletConnected');
     if (!connectionType) return;
-
-    if (connectionType === 'walletconnect' && walletConnectProvider?.accounts?.length > 0) {
-        await connectWithWalletConnect();
+    
+    // FIX: For WalletConnect, rely on the provider's connected status
+    if (connectionType === 'walletconnect') {
+        if (!walletConnectProvider) await initializeWalletConnect();
+        if (walletConnectProvider.connected) {
+            await handleWalletConnectSession();
+        }
     } else if (connectionType === 'metamask' && window.ethereum) {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         if (accounts.length > 0) {
@@ -333,7 +363,6 @@ export function getErrorMessage(error) {
             case -32603: return 'Internal JSON-RPC error. The contract may have rejected the transaction.';
             case -32002: return 'Request already pending. Please check your wallet.';
             case 'UNPREDICTABLE_GAS_LIMIT': return 'Transaction cannot be completed. The collateral ratio is likely out of the allowed range.';
-            // FIX: Corrected error message to refer to MATIC for gas fees.
             case 'INSUFFICIENT_FUNDS': return 'Your wallet has insufficient MATIC for this transaction, including gas fees.';
         }
     }
@@ -346,6 +375,14 @@ export function getErrorMessage(error) {
         }
     }
     return 'An unexpected error occurred. Please try again.';
+}
+
+// FIX: Add handler for when the page becomes visible again
+function handleVisibilityChange() {
+    if (!document.hidden && !appState.userAccount) {
+        console.log('Page became visible, checking for existing connection.');
+        checkForExistingConnection();
+    }
 }
 
 async function initializeApp() {
@@ -392,6 +429,9 @@ async function initializeApp() {
             icon.classList.toggle('fa-times', navMenu.classList.contains('active'));
         });
     }
+    
+    // FIX: Add visibility change listener for mobile reliability
+    document.addEventListener('visibilitychange', handleVisibilityChange, false);
 
     await initializeWalletConnect();
     await checkForExistingConnection();
