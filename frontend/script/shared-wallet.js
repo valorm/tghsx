@@ -1,10 +1,10 @@
 /**
  * ==================================================================================
- * Shared Wallet & App Logic (shared-wallet.js) - MOBILE CONNECTION FIX V4
+ * Shared Wallet & App Logic (shared-wallet.js) - FINAL RESILIENCE FIXES V7
  *
  * This script manages the global state for the tGHSX application.
- * This version includes the improved session restore logic and pre-DOM
- * initialization for WalletConnect.
+ * This version includes advanced session recovery logic for mobile wallet
+ * redirects by listening to focus events and using more robust session detection.
  * ==================================================================================
  */
 
@@ -40,17 +40,23 @@ let walletConnectProvider = null;
 
 /**
  * Initializes the WalletConnect provider and sets up crucial event listeners.
+ * Includes metadata for reliable mobile wallet redirection.
  */
 async function initializeWalletConnect() {
     console.log("Initializing WalletConnect...");
     try {
-        const projectId = '4571f8b102cc836bdd761e9798a0e1f4'; 
+        const projectId = '4571f8b102cc836bdd761e9798a0e1f4';
         walletConnectProvider = await EthereumProvider.init({
             projectId,
             chains: [REQUIRED_CHAIN_ID],
             showQrModal: true,
             qrModalOptions: { themeMode: "dark" },
-            events: ['connect', 'disconnect', 'session_proposal']
+            metadata: {
+                name: "tGHSX Protocol",
+                description: "The Synthetic Ghanaian Cedi, backed by Crypto.",
+                url: "https://tghsx.vercel.app",
+                icons: ["https://tghsx.vercel.app/images/icons/icon-192x192.png"]
+            }
         });
 
         walletConnectProvider.on('session_proposal', (proposal) => {
@@ -74,11 +80,16 @@ async function initializeWalletConnect() {
     }
 }
 
+
 /**
  * Handles the logic after a WalletConnect session is confirmed.
  */
 async function handleWalletConnectSession() {
     console.log("Handling WalletConnect Session...");
+    if (appState.userAccount) {
+        console.log("Session already handled.");
+        return;
+    }
     appState.isConnecting = true;
     updateWalletUI();
     try {
@@ -154,8 +165,8 @@ async function connectWithWalletConnect() {
     updateWalletUI();
 
     try {
-        await walletConnectProvider.connect(); // <- RIGHT HERE
-        console.log("WalletConnect connect() called. Awaiting user approval..."); // 👈 ADD THIS LINE
+        await walletConnectProvider.connect();
+        console.log("WalletConnect connect() called. Awaiting user approval...");
     } catch (error) {
         console.error('Error during WalletConnect connection attempt:', error);
         if (!error.message.includes("Connection request reset")) {
@@ -164,8 +175,6 @@ async function connectWithWalletConnect() {
         resetWalletState();
     }
 }
-
-
 
 async function setupProviderAndState(provider, account) {
     console.log(`Setting up provider for account: ${account}`);
@@ -249,20 +258,25 @@ function resetWalletState() {
 
 async function checkForExistingConnection() {
     console.log("Checking for existing connection...");
+
+    // Most important check for mobile redirects: if a WC session exists but app state is not set, handle it.
+    if (walletConnectProvider?.session && !appState.userAccount) {
+        console.log("Found active WalletConnect session on check. Attempting to handle...");
+        await handleWalletConnectSession();
+        return; 
+    }
+
     const connectionType = localStorage.getItem('walletConnected');
     if (!connectionType) return;
 
     if (connectionType === 'walletconnect') {
         if (!walletConnectProvider) await initializeWalletConnect();
-
-        // Use `session` to recover session immediately after redirect
-     const sessions = await walletConnectProvider?.client?.core?.session?.getAll();
-if (sessions && sessions.length > 0) {
-    console.log("Restoring WalletConnect session...");
-    await handleWalletConnectSession();
-} else {
-    console.warn("No WalletConnect session found.");
-}
+        // Fallback for sessions from persistent storage
+        const sessions = await walletConnectProvider?.client?.core?.session?.getAll();
+        if (sessions && sessions.length > 0 && !appState.userAccount) {
+            console.log("Restoring WalletConnect session from persistent storage...");
+            await handleWalletConnectSession();
+        }
 
     } else if (connectionType === 'metamask' && window.ethereum) {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
@@ -371,10 +385,20 @@ export function getErrorMessage(error) {
     return 'An unexpected error occurred. Please try again.';
 }
 
+/**
+ * Enhanced visibility change handler to re-check connection status.
+ * Includes a retry mechanism for slower mobile environments.
+ */
 function handleVisibilityChange() {
     if (!document.hidden && !appState.userAccount) {
         console.log('Page became visible, re-checking connection status.');
         checkForExistingConnection();
+        setTimeout(() => {
+            if (!appState.userAccount) {
+                console.log('Retrying connection check after delay...');
+                checkForExistingConnection();
+            }
+        }, 2000); // retry after 2s
     }
 }
 
@@ -420,16 +444,28 @@ function initializeApp() {
     
     document.addEventListener('visibilitychange', handleVisibilityChange, false);
     
+    // NEW: Add focus event listener for mobile redirect scenarios
+    window.addEventListener("focus", () => {
+        if (!appState.userAccount) {
+            console.log("[Focus] Checking for wallet session on refocus");
+            checkForExistingConnection();
+        }
+    });
+
     // Initial UI update based on pre-DOM connection check
     updateWalletUI();
     setInterval(fetchProtocolStatus, 60000); 
 }
 
+// --- Pre-DOM Initialization ---
+// Initialize WalletConnect and check for existing sessions before the DOM is fully loaded.
 (async () => {
   await initializeWalletConnect();
   await checkForExistingConnection();
 })();
-document.addEventListener('DOMContentLoaded', async () => {
-  initializeApp(); // do NOT call bootApp here again
-});
 
+// --- DOM-Ready Initialization ---
+// Set up event listeners and UI elements once the DOM is ready.
+document.addEventListener('DOMContentLoaded', () => {
+  initializeApp();
+});
