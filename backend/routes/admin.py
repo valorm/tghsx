@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import Dict, Any
 from web3 import Web3
+# FIX: Import PoA middleware
+from web3.middleware import geth_poa_middleware
 
 # Import project-specific services and utilities
 from services.web3_client import get_web3_provider
@@ -28,6 +30,9 @@ except Exception as e:
 # --- Helper function to send a transaction ---
 def send_admin_transaction(function_call):
     w3 = get_web3_provider()
+    # FIX: Inject PoA middleware to handle PoA chain specifics
+    w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+    
     admin_account = w3.eth.account.from_key(MINTER_PRIVATE_KEY)
     
     tx_payload = {
@@ -57,6 +62,8 @@ async def get_contract_status():
     """
     try:
         w3 = get_web3_provider()
+        # FIX: Inject PoA middleware for read calls as well
+        w3.middleware_onion.inject(geth_poa_middleware, layer=0)
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
         
         is_paused = vault_contract.functions.paused().call()

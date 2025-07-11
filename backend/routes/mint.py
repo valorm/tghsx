@@ -13,6 +13,8 @@ from services.supabase_client import get_supabase_admin_client
 from services.oracle_service import get_eth_ghs_price
 from utils.utils import load_contract_abi, get_current_user, is_admin_user
 from web3 import Web3
+# FIX: Import PoA middleware
+from web3.middleware import geth_poa_middleware
 
 router = APIRouter()
 
@@ -80,7 +82,6 @@ async def submit_mint_request(
     background_tasks: BackgroundTasks,
     user: dict = Depends(get_current_user)
 ):
-    # FIX: The user's ID is in the 'sub' (subject) claim of the JWT payload.
     user_id = user.get("sub")
     if not user_id:
         raise HTTPException(status_code=400, detail="Could not identify user from token.")
@@ -177,6 +178,9 @@ async def approve_and_mint(
         amount_wei = int(amount_to_mint * (10**18))
 
         w3 = get_web3_provider()
+        # FIX: Inject PoA middleware to handle PoA chain specifics
+        w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+        
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
         admin_account = w3.eth.account.from_key(MINTER_PRIVATE_KEY)
         tx_payload = {'from': admin_account.address, 'nonce': w3.eth.get_transaction_count(admin_account.address)}
