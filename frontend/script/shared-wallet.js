@@ -1,31 +1,28 @@
 /**
  * ==================================================================================
- * Shared Wallet & App Logic (shared-wallet.js)
+ * Shared Wallet & App Logic (shared-wallet.js) - MOBILE CONNECTION FIX V2
  *
- * This script manages the global state for the tGHSX application, including:
- * - Wallet connection (MetaMask & WalletConnect) and state management.
- * - Blockchain interaction setup (ethers.js).
- * - User authentication state (login/logout).
- * - Shared utility functions (toasts, formatting).
- * - Protocol status polling and mobile navigation.
+ * This script manages the global state for the tGHSX application.
+ * This version includes a more robust, event-driven approach for WalletConnect
+ * to ensure reliable connections on mobile browsers.
  * ==================================================================================
  */
 
-// Using a module-friendly CDN (esm.sh) to resolve the import error.
 import EthereumProvider from 'https://esm.sh/@walletconnect/ethereum-provider@2.11.0';
 
+// --- Configuration ---
 const NETWORKS = {
     31337: 'Localhost (Hardhat)',
     80002: 'Polygon Amoy Testnet',
     137: 'Polygon Mainnet',
 };
 const REQUIRED_CHAIN_ID = 80002;
-
 export const BACKEND_URL = 'https://tghsx.onrender.com';
 const CONTRACT_ADDRESS = "0x33B74A7225ec9836DE11e46Ce61026e0B0E7F657";
 const COLLATERAL_VAULT_ABI = [ "event CollateralDeposited(address indexed user, uint256 amount, uint256 indexed blockNumber)", "event CollateralWithdrawn(address indexed user, uint256 amount)", "event TGHSXMinted(address indexed user, uint256 amount, uint256 indexed newRatio)", "event TGHSXBurned(address indexed user, uint256 amount, uint256 indexed newRatio)", "function deposit() external payable", "function withdraw(uint256 amount) external", "function mintTGHSX(uint256 amount) external", "function burnTGHSX(uint256 amount) external", "function depositAndMint(uint256 tghsxAmountToMint) external payable", "function repayAndWithdraw(uint256 repayAmount, uint256 withdrawAmount) external", "function getEthGhsPrice() public view returns (uint256 ethGhsPrice)", "function getUserCollateral(address user) external view returns (uint256)", "function getUserDebt(address user) external view returns (uint256)", "function getCollateralizationRatio(address user) external view returns (uint256)", "function tghsxToken() view returns (address)", "function liquidateVault(address user, uint256 tghsxToRepay) external", "function paused() view returns (bool)" ];
 const TGHSX_ABI = [ "function approve(address spender, uint256 amount) external returns (bool)", "function allowance(address owner, address spender) external view returns (uint256)" ];
 
+// --- Global State ---
 export const appState = {
     userAccount: null,
     provider: null,
@@ -41,49 +38,57 @@ export const appState = {
 
 let walletConnectProvider = null;
 
+/**
+ * Initializes the WalletConnect provider and sets up crucial event listeners.
+ * This is the core of the mobile connection fix.
+ */
 async function initializeWalletConnect() {
+    console.log("Initializing WalletConnect...");
     try {
         const projectId = '4571f8b102cc836bdd761e9798a0e1f4'; 
-
         walletConnectProvider = await EthereumProvider.init({
             projectId,
             chains: [REQUIRED_CHAIN_ID],
             showQrModal: true,
-            qrModalOptions: {
-                themeMode: "dark",
-                explorerRecommendedWalletIds: 'c57ca95b47569778a828d19178114f4db18e6954006d01c20f0de37c162d44cb',
-            },
-            // FIX: Add listeners for mobile reliability
-            events: ['session_proposal', 'connect', 'disconnect']
+            qrModalOptions: { themeMode: "dark" },
+            events: ['connect', 'disconnect', 'session_proposal'] // Explicitly listen for events
         });
 
-        walletConnectProvider.on("disconnect", () => {
-            console.log("WalletConnect session disconnected");
-            resetWalletState();
-        });
-
-        // FIX: Handle session proposal event for mobile wallets
+        // --- Event-Driven Handlers for Reliability ---
         walletConnectProvider.on('session_proposal', (proposal) => {
-            console.log('WalletConnect session proposal received:', proposal);
+            console.log('WalletConnect Event: session_proposal received.', proposal);
         });
 
         walletConnectProvider.on('connect', (session) => {
-             console.log('WalletConnect connected:', session);
-             handleWalletConnectSession(session);
+            console.log('WalletConnect Event: connect received.', session);
+            handleWalletConnectSession();
         });
 
+        walletConnectProvider.on("disconnect", () => {
+            console.log("WalletConnect Event: disconnect received.");
+            resetWalletState();
+        });
 
+        console.log("WalletConnect Initialized Successfully.");
     } catch (e) {
-        console.error("Failed to initialize WalletConnect provider", e);
+        console.error("Fatal Error during WalletConnect initialization:", e);
         showToast("Could not start WalletConnect.", "error");
     }
 }
 
-// FIX: New function to handle successful WalletConnect session establishment
+/**
+ * Handles the logic after a WalletConnect session is confirmed.
+ */
 async function handleWalletConnectSession() {
+    console.log("Handling WalletConnect Session...");
+    appState.isConnecting = true;
+    updateWalletUI();
     try {
         const accounts = walletConnectProvider.accounts;
-        if (accounts.length === 0) throw new Error('No accounts found via WalletConnect.');
+        if (!accounts || accounts.length === 0) {
+            throw new Error('No accounts found after WalletConnect session was established.');
+        }
+        console.log("WalletConnect Accounts:", accounts);
 
         appState.connectionType = 'walletconnect';
         localStorage.setItem('walletConnected', 'walletconnect');
@@ -91,7 +96,7 @@ async function handleWalletConnectSession() {
         const provider = new ethers.providers.Web3Provider(walletConnectProvider);
         await setupProviderAndState(provider, accounts[0]);
     } catch (error) {
-        console.error('Error handling WalletConnect session:', error);
+        console.error('Error processing WalletConnect session:', error);
         showToast(getErrorMessage(error), 'error');
         resetWalletState();
     } finally {
@@ -100,24 +105,17 @@ async function handleWalletConnectSession() {
     }
 }
 
-
 export function connectWallet() {
     const modal = document.getElementById('connectionModal');
-    if (modal) {
-        modal.classList.add('show');
-    } else {
-        console.error("Connection modal not found in the DOM.");
-    }
+    if (modal) modal.classList.add('show');
 }
 
 async function connectWithMetaMask() {
     if (typeof window.ethereum === 'undefined') {
         return showToast('MetaMask is not installed.', 'error');
     }
-    
     appState.isConnecting = true;
     updateWalletUI();
-
     try {
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         if (accounts.length === 0) throw new Error('No accounts found in MetaMask.');
@@ -127,7 +125,6 @@ async function connectWithMetaMask() {
         
         const provider = new ethers.providers.Web3Provider(window.ethereum);
         await setupProviderAndState(provider, accounts[0]);
-
     } catch (error) {
         console.error('Error connecting with MetaMask:', error);
         showToast(getErrorMessage(error), 'error');
@@ -139,31 +136,27 @@ async function connectWithMetaMask() {
 }
 
 async function connectWithWalletConnect() {
+    console.log("Attempting to connect with WalletConnect...");
     if (!walletConnectProvider) {
+        console.log("WalletConnect provider not initialized, initializing now.");
         await initializeWalletConnect();
     }
-
     appState.isConnecting = true;
     updateWalletUI();
-
     try {
-        // The 'connect' event listener will handle the session setup
+        // This triggers the QR modal or deep link. The 'connect' event listener will handle the rest.
         await walletConnectProvider.connect();
     } catch (error) {
-        if (error.message && error.message.includes('Connection request reset')) {
-            console.log('WalletConnect modal closed by user.');
-        } else {
-            console.error('Error connecting with WalletConnect:', error);
+        console.error('Error during WalletConnect connection attempt:', error);
+        if (!error.message.includes("Connection request reset")) { // Don't show toast if user just closes modal
             showToast(getErrorMessage(error), 'error');
         }
-        resetWalletState();
-    } finally {
-        appState.isConnecting = false;
-        updateWalletUI();
+        resetWalletState(); // Reset state if connection fails or is cancelled
     }
 }
 
 async function setupProviderAndState(provider, account) {
+    console.log(`Setting up provider for account: ${account}`);
     appState.provider = provider;
     appState.signer = provider.getSigner();
     appState.userAccount = account;
@@ -189,29 +182,24 @@ function listenToProviderEvents() {
     providerSource.removeAllListeners('chainChanged');
 
     providerSource.on('accountsChanged', (accounts) => {
-        if (accounts.length === 0) {
-            resetWalletState();
-        } else {
-            window.location.reload();
-        }
+        console.log("Event: accountsChanged", accounts);
+        if (accounts.length === 0) resetWalletState();
+        else window.location.reload();
     });
 
-    providerSource.on('chainChanged', () => window.location.reload());
+    providerSource.on('chainChanged', () => {
+        console.log("Event: chainChanged");
+        window.location.reload();
+    });
 }
-
 
 async function checkNetwork() {
     if (!appState.provider) return;
     try {
         const network = await appState.provider.getNetwork();
-        const friendlyName = NETWORKS[network.chainId];
-        
-        if (network.chainId === REQUIRED_CHAIN_ID) {
-            appState.isCorrectNetwork = true;
-            appState.networkName = `${friendlyName} (ID: ${network.chainId})`;
-        } else {
-            appState.isCorrectNetwork = false;
-            appState.networkName = `Wrong Network (ID: ${network.chainId})`;
+        appState.isCorrectNetwork = network.chainId === REQUIRED_CHAIN_ID;
+        appState.networkName = NETWORKS[network.chainId] || `Unsupported (ID: ${network.chainId})`;
+        if (!appState.isCorrectNetwork) {
             showToast(`Please switch to ${NETWORKS[REQUIRED_CHAIN_ID]}.`, 'error');
         }
     } catch (error) {
@@ -221,6 +209,7 @@ async function checkNetwork() {
 }
 
 export async function disconnectWallet() {
+    console.log("Disconnecting wallet...");
     if (appState.connectionType === 'walletconnect' && walletConnectProvider?.connected) {
         await walletConnectProvider.disconnect();
     }
@@ -229,6 +218,7 @@ export async function disconnectWallet() {
 }
 
 function resetWalletState() {
+    console.log("Resetting wallet state.");
     appState.userAccount = null;
     appState.provider = null;
     appState.signer = null;
@@ -238,6 +228,7 @@ function resetWalletState() {
     appState.tghsxTokenContract = null;
     appState.isProtocolPaused = false;
     appState.connectionType = null;
+    appState.isConnecting = false;
 
     localStorage.removeItem('walletConnected');
     updateWalletUI();
@@ -245,21 +236,24 @@ function resetWalletState() {
 }
 
 async function checkForExistingConnection() {
+    console.log("Checking for existing connection...");
     const connectionType = localStorage.getItem('walletConnected');
-    if (!connectionType) return;
+    if (!connectionType) {
+        console.log("No existing connection found in localStorage.");
+        return;
+    }
     
-    // FIX: For WalletConnect, rely on the provider's connected status
     if (connectionType === 'walletconnect') {
         if (!walletConnectProvider) await initializeWalletConnect();
         if (walletConnectProvider.connected) {
+            console.log("Found existing WalletConnect session.");
             await handleWalletConnectSession();
         }
     } else if (connectionType === 'metamask' && window.ethereum) {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         if (accounts.length > 0) {
+            console.log("Found existing MetaMask session.");
             await connectWithMetaMask();
-        } else {
-            resetWalletState();
         }
     }
 }
@@ -287,22 +281,16 @@ async function fetchProtocolStatus() {
         document.dispatchEvent(new CustomEvent('protocolStatusUpdated', { detail: { isPaused } }));
     } catch (error) {
         console.error("Could not fetch protocol status:", error);
-        appState.isProtocolPaused = false;
-        document.dispatchEvent(new CustomEvent('protocolStatusUpdated', { detail: { isPaused: false, error: true } }));
     }
 }
 
 async function saveWalletAddressToBackend(walletAddress) {
     const token = localStorage.getItem('accessToken');
     if (!token) return;
-
     try {
         await fetch(`${BACKEND_URL}/vault/save-wallet-address`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ wallet_address: walletAddress })
         });
     } catch (error) {
@@ -313,7 +301,6 @@ async function saveWalletAddressToBackend(walletAddress) {
 function updateWalletUI() {
     const walletBtn = document.getElementById('walletBtn');
     if (!walletBtn) return;
-
     if (appState.isConnecting) {
         walletBtn.textContent = 'Connecting...';
         walletBtn.disabled = true;
@@ -339,9 +326,7 @@ export function logoutUser() {
     disconnectWallet();
     localStorage.removeItem('accessToken');
     showToast('You have been logged out.', 'info');
-    setTimeout(() => {
-        window.location.href = './auth.html';
-    }, 1500);
+    setTimeout(() => { window.location.href = './auth.html'; }, 1500);
 }
 
 let toastTimeout;
@@ -351,9 +336,7 @@ export function showToast(message, type = 'success') {
     if (toastTimeout) clearTimeout(toastTimeout);
     toast.textContent = message;
     toast.className = `toast show ${type}`;
-    toastTimeout = setTimeout(() => {
-        toast.classList.remove('show');
-    }, 5000);
+    toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, 5000);
 }
 
 export function getErrorMessage(error) {
@@ -367,25 +350,21 @@ export function getErrorMessage(error) {
         }
     }
     if (error.message) {
-        if (error.message.toLowerCase().includes('user rejected') || error.message.toLowerCase().includes('user denied')) {
-            return 'Transaction cancelled by user.';
-        }
-        if (error.message.toLowerCase().includes('insufficient funds')) {
-            return 'Insufficient funds for transaction.';
-        }
+        if (error.message.toLowerCase().includes('user rejected') || error.message.toLowerCase().includes('user denied')) return 'Transaction cancelled by user.';
+        if (error.message.toLowerCase().includes('insufficient funds')) return 'Insufficient funds for transaction.';
     }
     return 'An unexpected error occurred. Please try again.';
 }
 
-// FIX: Add handler for when the page becomes visible again
 function handleVisibilityChange() {
     if (!document.hidden && !appState.userAccount) {
-        console.log('Page became visible, checking for existing connection.');
+        console.log('Page became visible, re-checking connection status.');
         checkForExistingConnection();
     }
 }
 
 async function initializeApp() {
+    console.log("Initializing App...");
     const token = localStorage.getItem('accessToken');
     const onAuthPage = window.location.pathname.endsWith('auth.html');
     if (!token && !onAuthPage) {
@@ -397,27 +376,21 @@ async function initializeApp() {
     document.getElementById('logoutBtn')?.addEventListener('click', logoutUser);
     
     const connectMetaMaskBtn = document.getElementById('connectMetaMaskBtn');
-    if (connectMetaMaskBtn) {
-        connectMetaMaskBtn.addEventListener('click', () => {
-            document.getElementById('connectionModal').classList.remove('show');
-            connectWithMetaMask();
-        });
-    }
+    if (connectMetaMaskBtn) connectMetaMaskBtn.addEventListener('click', () => {
+        document.getElementById('connectionModal').classList.remove('show');
+        connectWithMetaMask();
+    });
 
     const connectWalletConnectBtn = document.getElementById('connectWalletConnectBtn');
-    if (connectWalletConnectBtn) {
-        connectWalletConnectBtn.addEventListener('click', () => {
-            document.getElementById('connectionModal').classList.remove('show');
-            connectWithWalletConnect();
-        });
-    }
+    if (connectWalletConnectBtn) connectWalletConnectBtn.addEventListener('click', () => {
+        document.getElementById('connectionModal').classList.remove('show');
+        connectWithWalletConnect();
+    });
 
     const cancelConnectionBtn = document.getElementById('cancelConnectionBtn');
-    if (cancelConnectionBtn) {
-        cancelConnectionBtn.addEventListener('click', () => {
-            document.getElementById('connectionModal').classList.remove('show');
-        });
-    }
+    if (cancelConnectionBtn) cancelConnectionBtn.addEventListener('click', () => {
+        document.getElementById('connectionModal').classList.remove('show');
+    });
 
     const menuToggle = document.getElementById('menu-toggle');
     const navMenu = document.getElementById('nav-menu');
@@ -430,13 +403,10 @@ async function initializeApp() {
         });
     }
     
-    // FIX: Add visibility change listener for mobile reliability
     document.addEventListener('visibilitychange', handleVisibilityChange, false);
-
     await initializeWalletConnect();
     await checkForExistingConnection();
     updateWalletUI();
-
     setInterval(fetchProtocolStatus, 60000); 
 }
 
