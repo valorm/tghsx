@@ -1,17 +1,16 @@
 /**
  * ==================================================================================
- * Admin Dashboard Logic (admin.js) - Enhanced Version
+ * Admin Dashboard Logic (admin.js) - Enhanced Version with Bug Fixes
  *
  * Manages the admin dashboard, including fetching pending mint requests,
  * controlling protocol status, and handling admin actions like updating prices
  * and configuration.
- * * IMPROVEMENTS MADE:
- * - Enhanced error handling with retry logic
- * - Added input validation utilities 
- * - Improved loading states and user feedback
- * - Better accessibility features
- * - Performance optimizations
- * - Enhanced security measures
+ * 
+ * FIXES APPLIED:
+ * - Fixed sanitizeInput function to handle null/undefined values
+ * - Added proper element existence checks
+ * - Enhanced error handling for missing DOM elements
+ * - Improved validation with fallback values
  * ==================================================================================
  */
 
@@ -67,25 +66,36 @@ async function apiCall(endpoint, options = {}, retries = 3) {
     }
 }
 
-// Enhanced input validation utilities
+// FIXED: Enhanced input validation utilities with proper null/undefined handling
 const validation = {
     isValidPrice: (value) => {
+        if (value === null || value === undefined || value === '') return false;
         const num = parseFloat(value);
         return !isNaN(num) && num > 0 && num < 1000000; // Reasonable price range
     },
     
     isValidThreshold: (value) => {
+        if (value === null || value === undefined || value === '') return false;
         const num = parseInt(value);
         return !isNaN(num) && num > 0 && num <= 86400; // Max 24 hours
     },
     
+    // FIXED: Proper handling of null/undefined values
     sanitizeInput: (input) => {
-        return input.toString().trim().replace(/[<>]/g, '');
+        if (input === null || input === undefined) {
+            return '';
+        }
+        
+        // Convert to string safely
+        const str = typeof input === 'string' ? input : String(input);
+        return str.trim().replace(/[<>]/g, '');
     }
 };
 
 // Enhanced number formatting with locale support
 function formatNumber(numStr) {
+    if (numStr === null || numStr === undefined || numStr === '') return 'N/A';
+    
     const num = parseFloat(numStr);
     if (isNaN(num)) return 'N/A';
     
@@ -103,7 +113,7 @@ function formatNumber(numStr) {
 }
 
 function truncate(str, len = 12) {
-    if (!str || str.length <= len) return str;
+    if (!str || str.length <= len) return str || '';
     return `${str.slice(0, len)}...`;
 }
 
@@ -159,12 +169,12 @@ function updateStatusDisplay(data) {
 
     if (data.isPaused) {
         statusEl.innerHTML = `<span class="status-badge paused" role="status" aria-label="Protocol paused">PAUSED</span>`;
-        pauseBtn.disabled = true;
-        resumeBtn.disabled = false;
+        if (pauseBtn) pauseBtn.disabled = true;
+        if (resumeBtn) resumeBtn.disabled = false;
     } else {
         statusEl.innerHTML = `<span class="status-badge active" role="status" aria-label="Protocol active">ACTIVE</span>`;
-        pauseBtn.disabled = false;
-        resumeBtn.disabled = true;
+        if (pauseBtn) pauseBtn.disabled = false;
+        if (resumeBtn) resumeBtn.disabled = true;
     }
     
     // Update price feed information with validation
@@ -318,14 +328,17 @@ async function refreshAllData() {
     }
 }
 
-// Enhanced modal functionality with better accessibility
+// FIXED: Enhanced modal functionality with proper null checking
 function showActionModal(action, value) {
     const modal = document.getElementById('actionModal');
     const titleEl = document.getElementById('modalTitle');
     const textEl = document.getElementById('modalText');
     const confirmBtn = document.getElementById('modalConfirmBtn');
     
-    if (!modal || !titleEl || !textEl || !confirmBtn) return;
+    if (!modal || !titleEl || !textEl || !confirmBtn) {
+        console.warn('Modal elements not found');
+        return;
+    }
 
     const config = {
         pause: { 
@@ -367,7 +380,10 @@ function showActionModal(action, value) {
     };
 
     const actionConfig = config[action];
-    if (!actionConfig) return;
+    if (!actionConfig) {
+        console.warn(`Unknown action: ${action}`);
+        return;
+    }
     
     titleEl.textContent = actionConfig.title;
     textEl.textContent = actionConfig.text;
@@ -394,7 +410,8 @@ function showActionModal(action, value) {
 
 function handleModalKeydown(event) {
     if (event.key === 'Escape') {
-        document.getElementById('actionModal').classList.remove('show');
+        const modal = document.getElementById('actionModal');
+        if (modal) modal.classList.remove('show');
     }
 }
 
@@ -409,13 +426,20 @@ function handleConfirm(action, value) {
     };
     
     const actionFn = actions[action];
-    if (actionFn) actionFn();
+    if (actionFn) {
+        actionFn();
+    } else {
+        console.warn(`Unknown action: ${action}`);
+    }
 }
 
 // Enhanced price update with validation
 async function executeUpdateGhsPrice(newPrice) {
     const btn = document.getElementById('updateGhsPriceBtn');
-    if (!btn) return;
+    if (!btn) {
+        console.warn('Update GHS price button not found');
+        return;
+    }
     
     const sanitizedPrice = validation.sanitizeInput(newPrice);
     
@@ -435,7 +459,8 @@ async function executeUpdateGhsPrice(newPrice) {
         });
         
         showToast(`GHS price updated to ${formatNumber(sanitizedPrice)}!`, 'success');
-        document.getElementById('newGhsPriceInput').value = '';
+        const input = document.getElementById('newGhsPriceInput');
+        if (input) input.value = '';
         fetchContractStatus();
         
     } catch(error) {
@@ -451,7 +476,10 @@ async function executeUpdateGhsPrice(newPrice) {
 // Enhanced threshold update with validation
 async function executeUpdateThreshold(newThreshold) {
     const btn = document.getElementById('updateStalenessThresholdBtn');
-    if (!btn) return;
+    if (!btn) {
+        console.warn('Update staleness threshold button not found');
+        return;
+    }
     
     const sanitizedThreshold = validation.sanitizeInput(newThreshold);
     
@@ -471,7 +499,8 @@ async function executeUpdateThreshold(newThreshold) {
         });
         
         showToast(`Staleness threshold updated to ${sanitizedThreshold} seconds!`, 'success');
-        document.getElementById('newStalenessThresholdInput').value = '';
+        const input = document.getElementById('newStalenessThresholdInput');
+        if (input) input.value = '';
         fetchContractStatus();
         
     } catch(error) {
@@ -562,7 +591,10 @@ async function executeDecline(requestId) {
 // Enhanced protocol control functions
 async function executePause() {
     const btn = document.getElementById('pauseBtn');
-    if (!btn) return;
+    if (!btn) {
+        console.warn('Pause button not found');
+        return;
+    }
     
     btn.disabled = true;
     const originalText = btn.textContent;
@@ -584,7 +616,10 @@ async function executePause() {
 
 async function executeResume() {
     const btn = document.getElementById('resumeBtn');
-    if (!btn) return;
+    if (!btn) {
+        console.warn('Resume button not found');
+        return;
+    }
     
     btn.disabled = true;
     const originalText = btn.textContent;
@@ -627,7 +662,7 @@ function stopAutoRefresh() {
     }
 }
 
-// Enhanced initialization with better error handling
+// FIXED: Enhanced initialization with proper element checking
 document.addEventListener('DOMContentLoaded', () => {
     currentToken = localStorage.getItem('accessToken');
     
@@ -636,7 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
     
-    // Enhanced event listeners with error handling
+    // FIXED: Enhanced event listeners with proper error handling
     const addEventListenerSafely = (id, event, handler) => {
         const element = document.getElementById(id);
         if (element) {
@@ -646,20 +681,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
+    // Core navigation and refresh
     addEventListenerSafely('logoutBtn', 'click', logoutUser);
     addEventListenerSafely('refreshBtn', 'click', refreshAllData);
+    
+    // Protocol control
     addEventListenerSafely('pauseBtn', 'click', () => showActionModal('pause'));
     addEventListenerSafely('resumeBtn', 'click', () => showActionModal('resume'));
+    
+    // Modal control
     addEventListenerSafely('modalCancelBtn', 'click', () => {
-        document.getElementById('actionModal')?.classList.remove('show');
+        const modal = document.getElementById('actionModal');
+        if (modal) modal.classList.remove('show');
     });
 
     // Enhanced price update handler
     addEventListenerSafely('updateGhsPriceBtn', 'click', () => {
         const input = document.getElementById('newGhsPriceInput');
-        if (!input) return;
+        if (!input) {
+            console.warn('GHS price input not found');
+            return;
+        }
         
-        const newPrice = input.value.trim();
+        const newPrice = input.value ? input.value.trim() : '';
         if (!validation.isValidPrice(newPrice)) {
             showToast('Please enter a valid positive number for the price.', 'error');
             input.focus();
@@ -668,12 +712,15 @@ document.addEventListener('DOMContentLoaded', () => {
         showActionModal('updatePrice', newPrice);
     });
 
-    // Enhanced threshold update handler
+    // FIXED: Enhanced threshold update handler with better error handling
     addEventListenerSafely('updateStalenessThresholdBtn', 'click', () => {
         const input = document.getElementById('newStalenessThresholdInput');
-        if (!input) return;
+        if (!input) {
+            console.warn('Staleness threshold input not found');
+            return;
+        }
         
-        const newThreshold = input.value.trim();
+        const newThreshold = input.value ? input.value.trim() : '';
         if (!validation.isValidThreshold(newThreshold)) {
             showToast('Please enter a valid positive integer for the threshold (1-86400 seconds).', 'error');
             input.focus();

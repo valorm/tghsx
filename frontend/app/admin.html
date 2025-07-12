@@ -10,7 +10,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <!-- Link to the external stylesheet -->
     <link rel="stylesheet" href="../css/admin-styles.css">
 </head>
 <body>
@@ -127,6 +126,34 @@
                                 </button>
                             </div>
                             <div id="price-help" class="sr-only">Enter the new price for GHS token in USD</div>
+                        </div>
+
+                        <!-- FIX: Added the missing control item for the staleness threshold -->
+                        <div class="control-item">
+                            <div class="control-label">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                                Price Staleness Threshold
+                            </div>
+                            <div class="control-value">
+                                <span id="currentStalenessThreshold" class="price-display">Loading...</span>
+                            </div>
+                            <div class="update-form">
+                                <label for="newStalenessThresholdInput" class="sr-only">New Staleness Threshold in Seconds</label>
+                                <input 
+                                    type="number" 
+                                    id="newStalenessThresholdInput" 
+                                    placeholder="New Threshold (seconds)" 
+                                    class="input-field"
+                                    min="300"
+                                    max="86400"
+                                >
+                                <button id="updateStalenessThresholdBtn" class="btn btn-primary" aria-label="Update staleness threshold">
+                                    Update Threshold
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
