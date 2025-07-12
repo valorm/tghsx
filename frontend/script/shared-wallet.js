@@ -1,10 +1,10 @@
 /**
  * ==================================================================================
- * Shared Wallet & App Logic (shared-wallet.js) - CHAIN SWITCH FIX V10
+ * Shared Wallet & App Logic (shared-wallet.js) - STABILITY FIX V12
  *
  * This script manages the global state for the tGHSX application.
- * This version includes a critical fix to proactively handle network mismatches
- * by prompting the user to switch to the correct chain.
+ * This version consolidates all initialization logic to run after the DOM is
+ * fully loaded, preventing race conditions and improving stability.
  * ==================================================================================
  */
 
@@ -18,8 +18,10 @@ const NETWORKS = {
 };
 const REQUIRED_CHAIN_ID = 80002;
 export const BACKEND_URL = 'https://tghsx.onrender.com';
-const CONTRACT_ADDRESS = "0x33B74A7225ec9836DE11e46Ce61026e0B0E7F657";
-const COLLATERAL_VAULT_ABI = [ "event CollateralDeposited(address indexed user, uint256 amount, uint256 indexed blockNumber)", "event CollateralWithdrawn(address indexed user, uint256 amount)", "event TGHSXMinted(address indexed user, uint256 amount, uint256 indexed newRatio)", "event TGHSXBurned(address indexed user, uint256 amount, uint256 indexed newRatio)", "function deposit() external payable", "function withdraw(uint256 amount) external", "function mintTGHSX(uint256 amount) external", "function burnTGHSX(uint256 amount) external", "function depositAndMint(uint256 tghsxAmountToMint) external payable", "function repayAndWithdraw(uint256 repayAmount, uint256 withdrawAmount) external", "function getEthGhsPrice() public view returns (uint256 ethGhsPrice)", "function getUserCollateral(address user) external view returns (uint256)", "function getUserDebt(address user) external view returns (uint256)", "function getCollateralizationRatio(address user) external view returns (uint256)", "function tghsxToken() view returns (address)", "function liquidateVault(address user, uint256 tghsxToRepay) external", "function paused() view returns (bool)" ];
+const COLLATERAL_VAULT_ADDRESS = "0x49d5B58607582F611737edEb8D563e8517F7192c"; // Your deployed contract
+const COLLATERAL_VAULT_ABI = [
+    "event CollateralDeposited(address indexed user, uint256 amount, uint256 indexed blockNumber)", "event CollateralWithdrawn(address indexed user, uint256 amount)", "event TGHSXMinted(address indexed user, uint256 amount, uint256 indexed newRatio)", "event TGHSXBurned(address indexed user, uint256 amount, uint256 indexed newRatio)", "function deposit() external payable", "function withdraw(uint256 amount) external", "function mintTGHSX(uint256 amount) external", "function burnTGHSX(uint256 amount) external", "function depositAndMint(uint256 tghsxAmountToMint) external payable", "function repayAndWithdraw(uint256 repayAmount, uint256 withdrawAmount) external", "function getEthGhsPrice() public view returns (uint256)", "function getUserCollateral(address user) external view returns (uint256)", "function getUserDebt(address user) external view returns (uint256)", "function getUserPosition(address user) external view returns (uint256, uint256, uint256)", "function tghsxToken() view returns (address)", "function liquidateVault(address user, uint256 tghsxToRepay) external", "function paused() view returns (bool)"
+];
 const TGHSX_ABI = [ "function approve(address spender, uint256 amount) external returns (bool)", "function allowance(address owner, address spender) external view returns (uint256)" ];
 
 // --- Global State ---
@@ -38,9 +40,6 @@ export const appState = {
 
 let walletConnectProvider = null;
 
-/**
- * Initializes the WalletConnect provider and sets up crucial event listeners.
- */
 async function initializeWalletConnect() {
     console.log("Initializing WalletConnect...");
     try {
@@ -48,7 +47,6 @@ async function initializeWalletConnect() {
         walletConnectProvider = await EthereumProvider.init({
             projectId,
             chains: [REQUIRED_CHAIN_ID],
-            optionalChains: Object.keys(NETWORKS).map(Number).filter(id => id !== REQUIRED_CHAIN_ID),
             showQrModal: true,
             qrModalOptions: { themeMode: "dark" },
             metadata: {
@@ -57,23 +55,6 @@ async function initializeWalletConnect() {
                 url: "https://tghsx.vercel.app",
                 icons: ["https://tghsx.vercel.app/images/icons/icon-192x192.png"]
             }
-        });
-
-        walletConnectProvider.on('session_proposal', (proposal) => {
-            console.log('[WalletConnect] Event: session_proposal received.', proposal);
-        });
-
-        walletConnectProvider.on('session_update', (params) => {
-            if (!params || !params.namespaces) {
-                console.warn('[WalletConnect] Skipping empty session_update payload');
-                return;
-            }
-            console.log('[WalletConnect] Event: session_update received.', params);
-        });
-
-        walletConnectProvider.on('connect', (session) => {
-            console.log('[WalletConnect] Event: connect received.', session);
-            handleWalletConnectSession();
         });
 
         walletConnectProvider.on("disconnect", () => {
@@ -88,16 +69,9 @@ async function initializeWalletConnect() {
     }
 }
 
-
-/**
- * Handles the logic after a WalletConnect session is confirmed.
- */
 async function handleWalletConnectSession() {
     console.log("Handling WalletConnect Session...");
-    if (appState.userAccount) {
-        console.log("Session already handled.");
-        return;
-    }
+    if (appState.isConnecting) return;
     appState.isConnecting = true;
     updateWalletUI();
     try {
@@ -105,17 +79,13 @@ async function handleWalletConnectSession() {
         if (!accounts || accounts.length === 0) {
             throw new Error('No accounts found after WalletConnect session was established.');
         }
-        console.log("WalletConnect Accounts:", accounts);
 
         appState.connectionType = 'walletconnect';
         localStorage.setItem('walletConnected', 'walletconnect');
 
         const provider = new ethers.providers.Web3Provider(walletConnectProvider);
         await setupProviderAndState(provider, accounts[0]);
-        document.dispatchEvent(new Event('walletConnected'));
-        document.dispatchEvent(new CustomEvent('accountChanged', { detail: accounts[0] }));
-        document.dispatchEvent(new Event('networkConnected'));
-
+        
     } catch (error) {
         console.error('Error processing WalletConnect session:', error);
         showToast(getErrorMessage(error), 'error');
@@ -135,6 +105,7 @@ async function connectWithMetaMask() {
     if (typeof window.ethereum === 'undefined') {
         return showToast('MetaMask is not installed.', 'error');
     }
+    if (appState.isConnecting) return;
     appState.isConnecting = true;
     updateWalletUI();
     try {
@@ -157,14 +128,13 @@ async function connectWithMetaMask() {
 }
 
 async function connectWithWalletConnect() {
+    if (appState.isConnecting) return;
     console.log("Attempting to connect with WalletConnect...");
     if (!walletConnectProvider) {
-        console.log("WalletConnect provider not initialized, initializing now.");
         await initializeWalletConnect();
     }
 
     if (walletConnectProvider.session) {
-        console.log("WalletConnect already connected. Handling session...");
         await handleWalletConnectSession();
         return;
     }
@@ -174,9 +144,7 @@ async function connectWithWalletConnect() {
 
     try {
         await walletConnectProvider.connect();
-        console.log("WalletConnect connect() called. Awaiting user approval...");
     } catch (error) {
-        console.error('Error during WalletConnect connection attempt:', error);
         if (!error.message.includes("Connection request reset")) {
             showToast(getErrorMessage(error), 'error');
         }
@@ -190,7 +158,6 @@ async function setupProviderAndState(provider, account) {
     appState.signer = provider.getSigner();
     appState.userAccount = account;
 
-    // This will now attempt to switch the chain if incorrect
     const isNetworkCorrect = await checkNetwork();
     
     if (isNetworkCorrect) {
@@ -214,21 +181,13 @@ function listenToProviderEvents() {
     }
 
     providerSource.on('accountsChanged', (accounts) => {
-        console.log("Event: accountsChanged", accounts);
         if (accounts.length === 0) resetWalletState();
         else window.location.reload();
     });
 
-    providerSource.on('chainChanged', () => {
-        console.log("Event: chainChanged");
-        window.location.reload();
-    });
+    providerSource.on('chainChanged', () => window.location.reload());
 }
 
-/**
- * Prompts the user to switch to the required blockchain network.
- * @returns {Promise<boolean>} - True if the switch was successful or not needed, false otherwise.
- */
 async function switchChain() {
     const provider = appState.connectionType === 'metamask' ? window.ethereum : walletConnectProvider;
     if (!provider) return false;
@@ -240,22 +199,15 @@ async function switchChain() {
         });
         return true;
     } catch (switchError) {
-        // This error code indicates that the chain has not been added to MetaMask.
-        // In a real app, you would add the chain here.
         if (switchError.code === 4902) {
             showToast(`Please add ${NETWORKS[REQUIRED_CHAIN_ID]} to your wallet.`, 'error');
         } else {
             showToast('Failed to switch network. Please do it manually.', 'error');
         }
-        console.error("Failed to switch chain:", switchError);
         return false;
     }
 }
 
-/**
- * Checks if the wallet is connected to the correct network. If not, it prompts the user to switch.
- * @returns {Promise<boolean>} - True if the network is correct, false otherwise.
- */
 async function checkNetwork() {
     if (!appState.provider) return false;
     try {
@@ -268,16 +220,13 @@ async function checkNetwork() {
         } else {
             appState.isCorrectNetwork = false;
             showToast(`Wrong network. Please switch to ${NETWORKS[REQUIRED_CHAIN_ID]}.`, 'warning');
-            // Proactively ask the user to switch
             return await switchChain();
         }
     } catch (error) {
-        console.error('Error checking network:', error);
         resetWalletState();
         return false;
     }
 }
-
 
 export async function disconnectWallet() {
     console.log("Disconnecting wallet...");
@@ -307,29 +256,16 @@ function resetWalletState() {
 }
 
 async function checkForExistingConnection() {
-    console.log("Checking for existing connection...");
-
-    if (walletConnectProvider?.session && !appState.userAccount) {
-        console.log("Found active WalletConnect session on check. Attempting to handle...");
-        await handleWalletConnectSession();
-        return; 
-    }
-
     const connectionType = localStorage.getItem('walletConnected');
     if (!connectionType) return;
 
     if (connectionType === 'walletconnect') {
-        if (!walletConnectProvider) await initializeWalletConnect();
-        const sessions = await walletConnectProvider?.client?.core?.session?.getAll();
-        if (sessions && sessions.length > 0 && !appState.userAccount) {
-            console.log("Restoring WalletConnect session from persistent storage...");
+        if (walletConnectProvider?.session) {
             await handleWalletConnectSession();
         }
-
     } else if (connectionType === 'metamask' && window.ethereum) {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         if (accounts.length > 0) {
-            console.log("Found existing MetaMask session.");
             await connectWithMetaMask();
         }
     }
@@ -338,12 +274,11 @@ async function checkForExistingConnection() {
 async function initializeContracts() {
     if (!appState.signer) return false;
     try {
-        appState.collateralVaultContract = new ethers.Contract(CONTRACT_ADDRESS, COLLATERAL_VAULT_ABI, appState.signer);
+        appState.collateralVaultContract = new ethers.Contract(COLLATERAL_VAULT_ADDRESS, COLLATERAL_VAULT_ABI, appState.signer);
         const tghsxTokenAddress = await appState.collateralVaultContract.tghsxToken();
         appState.tghsxTokenContract = new ethers.Contract(tghsxTokenAddress, TGHSX_ABI, appState.signer);
         return true;
     } catch (error) {
-        console.error('Failed to initialize contracts:', error);
         showToast('Failed to connect to smart contracts.', 'error');
         resetWalletState();
         return false;
@@ -438,16 +373,10 @@ function handleVisibilityChange() {
     if (!document.hidden && !appState.userAccount) {
         console.log('Page became visible, re-checking connection status.');
         checkForExistingConnection();
-        setTimeout(() => {
-            if (!appState.userAccount) {
-                console.log('Retrying connection check after delay...');
-                checkForExistingConnection();
-            }
-        }, 2000);
     }
 }
 
-function initializeApp() {
+async function initializeApp() {
     console.log("Initializing App (DOM Loaded)...");
     const token = localStorage.getItem('accessToken');
     const onAuthPage = window.location.pathname.endsWith('auth.html');
@@ -496,17 +425,11 @@ function initializeApp() {
         }
     });
 
+    await initializeWalletConnect();
+    await checkForExistingConnection();
+
     updateWalletUI();
     setInterval(fetchProtocolStatus, 60000); 
 }
 
-// --- Pre-DOM Initialization ---
-(async () => {
-  await initializeWalletConnect();
-  await checkForExistingConnection();
-})();
-
-// --- DOM-Ready Initialization ---
-document.addEventListener('DOMContentLoaded', () => {
-  initializeApp();
-});
+document.addEventListener('DOMContentLoaded', initializeApp);

@@ -16,7 +16,6 @@
 
     <title>Liquidations - tGHSX Protocol</title>
     
-    <!-- FIX: Add polyfill for Node.js 'process' object required by WalletConnect dependencies -->
     <script>
         window.process = { env: { DEBUG: undefined } };
     </script>
@@ -98,6 +97,11 @@
                     <span class="detail-label">Receiving Collateral (approx):</span>
                     <span class="detail-value" id="modalReceiveCollateral"></span>
                 </div>
+                <!-- NEW: Gas Fee Estimate Display -->
+                <div class="detail-item gas-fee-item">
+                    <span class="detail-label">Est. Network Fee:</span>
+                    <span class="detail-value" id="modalGasFee">Calculating...</span>
+                </div>
             </div>
             <p class="modal-warning">You must have enough tGHSX in your wallet to repay the debt. This will also require a gas fee.</p>
             <div class="modal-actions">
@@ -130,13 +134,5 @@
 
     <script type="module" src="../script/shared-wallet.js" defer></script>
     <script type="module" src="../script/liquidations.js" defer></script>
-
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('../sw.js').then(reg => console.log('SW registered for dApp page!'));
-            });
-        }
-    </script>
 </body>
 </html>

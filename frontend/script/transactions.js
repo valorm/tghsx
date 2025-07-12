@@ -1,250 +1,190 @@
 /**
  * ==================================================================================
- * Transaction History Page Logic (transactions.js) - OPTIMIZED
+ * Liquidations Page Logic (liquidations.js)
  *
- * Fetches, displays, filters, and exports user transaction history with optimizations:
- * - Server-side pagination for improved performance.
- * - UI states for loading (skeleton), error, and empty content.
- * - Refactored code for better maintainability.
- * Relies on shared-wallet.js for authentication and wallet state.
+ * Fetches and displays vaults eligible for liquidation.
+ * Allows users to initiate liquidation transactions with a gas fee estimate.
  * ==================================================================================
  */
 
-import { appState, logoutUser, formatAddress, showToast, BACKEND_URL } from './shared-wallet.js';
-
-const recordsPerPage = 10;
-
-let pageState = {
-    transactions: [],
-    currentPage: 1,
-    totalPages: 1,
-    totalRecords: 0,
-    isLoading: false,
-    error: null,
-    currentFilter: 'all',
-};
+import { appState, showToast, getErrorMessage, formatAddress, BACKEND_URL } from './shared-wallet.js';
 
 const elements = {
-    tableBody: document.getElementById('transactionTableBody'),
-    recordCount: document.getElementById('recordCount'),
-    pageInfo: document.getElementById('pageInfo'),
-    prevPageBtn: document.getElementById('prevPageBtn'),
-    nextPageBtn: document.getElementById('nextPageBtn'),
-    typeFilter: document.getElementById('typeFilter'),
-    exportBtn: document.getElementById('exportBtn'),
+    tableBody: document.getElementById('liquidationTableBody'),
+    loadingState: document.getElementById('loadingState'),
+    emptyState: document.getElementById('emptyState'),
+    modal: document.getElementById('liquidationModal'),
+    modalVaultOwner: document.getElementById('modalVaultOwner'),
+    modalRepayAmount: document.getElementById('modalRepayAmount'),
+    modalReceiveCollateral: document.getElementById('modalReceiveCollateral'),
+    modalGasFee: document.getElementById('modalGasFee'), // NEW: Gas fee element
+    modalConfirmBtn: document.getElementById('modalConfirmBtn'),
+    modalCancelBtn: document.getElementById('modalCancelBtn'),
 };
 
-async function fetchTransactions(page = 1) {
-    if (pageState.isLoading) return;
+let currentLiquidationTarget = null;
 
-    pageState.isLoading = true;
-    pageState.error = null;
-    updateView();
-
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-        pageState.error = 'Authentication error. Please log in again.';
-        pageState.isLoading = false;
-        updateView();
-        return;
-    }
+async function fetchAndRenderRiskyVaults() {
+    elements.loadingState.classList.remove('hidden');
+    elements.emptyState.classList.add('hidden');
+    elements.tableBody.innerHTML = '';
 
     try {
-        const response = await fetch(`${BACKEND_URL}/transactions/?page=${page}&limit=${recordsPerPage}&type=${pageState.currentFilter}`, {
+        const token = localStorage.getItem('accessToken');
+        if (!token) throw new Error('Please log in to view liquidations.');
+
+        const response = await fetch(`${BACKEND_URL}/liquidations/at-risk`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        if (!response.ok) {
-            if (response.status === 401) logoutUser();
-            throw new Error('Failed to fetch transactions from the server.');
-        }
+        if (!response.ok) throw new Error('Failed to fetch at-risk vaults.');
 
-        const data = await response.json();
-        pageState.transactions = (data.transactions || []).map(tx => formatTransaction(tx));
-        pageState.totalRecords = data.total || 0;
-        pageState.totalPages = Math.ceil(pageState.totalRecords / recordsPerPage);
-        pageState.currentPage = page;
+        const vaults = await response.json();
+        elements.emptyState.classList.toggle('hidden', vaults.length > 0);
+        if (vaults.length > 0) renderVaults(vaults);
 
     } catch (error) {
-        console.error('Error fetching transactions:', error);
-        pageState.error = error.message;
-        pageState.transactions = [];
+        console.error('Error fetching risky vaults:', error);
+        showToast(error.message, 'error');
+        elements.emptyState.textContent = 'Could not load data. Please try again later.';
+        elements.emptyState.classList.remove('hidden');
     } finally {
-        pageState.isLoading = false;
-        updateView();
+        elements.loadingState.classList.add('hidden');
     }
 }
 
-function updateView() {
-    if (pageState.isLoading) {
-        renderLoadingSkeleton();
-    } else if (pageState.error) {
-        renderErrorState(pageState.error);
-    } else if (pageState.transactions.length === 0) {
-        renderEmptyState();
-    } else {
-        renderTablePage();
-    }
-    updatePaginationUI();
-}
+function renderVaults(vaults) {
+    vaults.forEach(vault => {
+        const row = elements.tableBody.insertRow();
+        const collateralEth = ethers.utils.formatEther(vault.eth_collateral);
+        const debtTghsx = ethers.utils.formatEther(vault.tghsx_minted);
+        const ratio = parseFloat(vault.collateralization_ratio) / 100;
 
-function renderLoadingSkeleton() {
-    elements.tableBody.innerHTML = '';
-    for (let i = 0; i < recordsPerPage; i++) {
-        const row = document.createElement('tr');
         row.innerHTML = `
-            <td><div class="skeleton skeleton-text"></div></td>
-            <td><div class="skeleton skeleton-text"></div></td>
-            <td><div class="skeleton skeleton-text"></div></td>
-            <td><div class="skeleton skeleton-text"></div></td>
-            <td><div class="skeleton skeleton-text"></div></td>
-            <td><div class="skeleton skeleton-text"></div></td>
-        `;
-        elements.tableBody.appendChild(row);
-    }
-    elements.recordCount.innerHTML = '<span>Loading...</span>';
-}
-
-function renderErrorState(message) {
-    elements.tableBody.innerHTML = `
-        <tr>
-            <td colspan="6">
-                <div class="error-state">
-                    <h3><i class="fas fa-exclamation-triangle"></i> Oops! Something went wrong.</h3>
-                    <p>${message}</p>
-                    <button id="retryBtn" class="btn-retry">Try Again</button>
-                </div>
+            <td data-label="Vault Owner"><a href="https://amoy.polygonscan.com/address/${vault.wallet_address}" target="_blank" class="address-link">${formatAddress(vault.wallet_address)}</a></td>
+            <td data-label="Collateral (ETH)">${parseFloat(collateralEth).toFixed(4)} ETH</td>
+            <td data-label="Debt (tGHSX)">${parseFloat(debtTghsx).toFixed(2)} tGHSX</td>
+            <td data-label="Collateral Ratio"><span class="ratio-danger">${ratio.toFixed(2)}%</span></td>
+            <td data-label="Action">
+                <button class="liquidate-btn" data-user="${vault.wallet_address}" data-debt="${vault.tghsx_minted}" data-collateral="${vault.eth_collateral}">
+                    Liquidate
+                </button>
             </td>
-        </tr>`;
-    document.getElementById('retryBtn').addEventListener('click', () => fetchTransactions(1));
-}
-
-function renderEmptyState() {
-    elements.tableBody.innerHTML = `
-        <tr>
-            <td colspan="6">
-                <div class="empty-state">
-                    <h3>No transactions found</h3>
-                    <p>Your transaction history for the selected filter will appear here.</p>
-                </div>
-            </td>
-        </tr>`;
-}
-
-function renderTablePage() {
-    elements.tableBody.innerHTML = '';
-    pageState.transactions.forEach(tx => {
-        const row = document.createElement('tr');
-        const badgeClass = getMethodBadgeClass(tx.method);
-        row.innerHTML = `
-            <td data-label="Tx Hash"><a href="https://amoy.polygonscan.com/tx/${tx.fullHash}" target="_blank" class="hash-link" title="${tx.fullHash}">${tx.hash}</a></td>
-            <td data-label="Method"><span class="method-badge ${badgeClass}">${tx.method}</span></td>
-            <td data-label="Date & Time">${new Date(tx.datetime).toLocaleString()}</td>
-            <td data-label="From">${tx.from}</td>
-            <td data-label="To"><span class="direction-indicator ${tx.direction.toLowerCase()}">${tx.direction}</span> ${tx.to}</td>
-            <td data-label="Amount" class="${tx.value >= 0 ? 'amount-positive' : 'amount-negative'}">${tx.amount}</td>
         `;
-        elements.tableBody.appendChild(row);
     });
 }
 
-function updatePaginationUI() {
-    elements.pageInfo.textContent = `Page ${pageState.currentPage} of ${pageState.totalPages || 1}`;
-    elements.recordCount.innerHTML = `<span>Total ${pageState.totalRecords} records</span>`;
-    elements.prevPageBtn.disabled = pageState.currentPage === 1 || pageState.isLoading;
-    elements.nextPageBtn.disabled = pageState.currentPage >= pageState.totalPages || pageState.isLoading;
-    elements.exportBtn.disabled = pageState.transactions.length === 0 || pageState.isLoading;
-}
+async function showLiquidationModal(target) {
+    currentLiquidationTarget = target;
+    const { user, debt } = target;
 
-function formatTransaction(tx) {
-    const eventData = JSON.parse(tx.event_data);
-    const userAddressShort = eventData.user ? formatAddress(eventData.user) : 'N/A';
-    let amount, value, method = 'Unknown', direction = '', from = 'N/A', to = 'N/A', amountStr = '';
+    elements.modalVaultOwner.textContent = formatAddress(user);
     
-    switch(tx.event_name) {
-        case 'CollateralDeposited':
-            method = 'Deposit Collateral';
-            amount = ethers.utils.formatEther(eventData.amount);
-            value = -parseFloat(amount);
-            amountStr = `-${parseFloat(amount).toFixed(4)} ETH`;
-            direction = 'Out'; from = userAddressShort; to = 'Vault';
-            break;
-        case 'TGHSXMinted':
-            method = 'Mint tGHSX';
-            amount = ethers.utils.formatEther(eventData.amount);
-            value = parseFloat(amount);
-            amountStr = `+${parseFloat(amount).toFixed(2)} tGHSX`;
-            direction = 'In'; from = 'Vault'; to = userAddressShort;
-            break;
-        case 'TGHSXBurned':
-            method = 'Repay Debt';
-            amount = ethers.utils.formatEther(eventData.amount);
-            value = -parseFloat(amount);
-            amountStr = `-${parseFloat(amount).toFixed(2)} tGHSX`;
-            direction = 'Out'; from = userAddressShort; to = 'Vault';
-            break;
-        case 'CollateralWithdrawn':
-            method = 'Withdraw Collateral';
-            amount = ethers.utils.formatEther(eventData.amount);
-            value = parseFloat(amount);
-            amountStr = `+${parseFloat(amount).toFixed(4)} ETH`;
-            direction = 'In'; from = 'Vault'; to = userAddressShort;
-            break;
-    }
-
-    return {
-        hash: formatAddress(tx.tx_hash), fullHash: tx.tx_hash,
-        method, datetime: tx.block_timestamp, from, to, amount: amountStr, value, direction
-    };
-}
-
-function getMethodBadgeClass(method) {
-    if (method.includes('Deposit')) return 'withdraw';
-    if (method.includes('Withdraw')) return 'deposit';
-    if (method.includes('Mint')) return 'mint';
-    if (method.includes('Repay')) return 'repay';
-    return '';
-}
-
-function exportToCSV() {
-    if (pageState.transactions.length === 0) {
-        showToast("No data to export.", "info");
-        return;
-    }
-    const headers = ["Transaction Hash", "Method", "Date & Time", "From", "To", "Amount"];
-    const rows = pageState.transactions.map(tx => [
-        `"${tx.fullHash}"`, `"${tx.method}"`, `"${new Date(tx.datetime).toLocaleString()}"`,
-        `"${tx.from}"`, `"${tx.to}"`, `"${tx.amount.replace(/,/g, '')}"`
-    ]);
-
-    const csvContent = "data:text/csv;charset=utf-8," 
-        + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    // Calculate 50% of the debt to repay
+    const tghsxToRepay = ethers.BigNumber.from(debt).div(2);
+    elements.modalRepayAmount.textContent = `~${parseFloat(ethers.utils.formatEther(tghsxToRepay)).toFixed(2)} tGHSX`;
     
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `tghsx_transactions_page_${pageState.currentPage}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Clear previous values and show loading state
+    elements.modalReceiveCollateral.textContent = `Calculating...`;
+    elements.modalGasFee.textContent = 'Calculating...';
+    elements.modal.classList.add('show');
+
+    // Estimate collateral and gas fee asynchronously
+    try {
+        if (!appState.collateralVaultContract || !appState.provider) {
+            throw new Error("Wallet not fully connected.");
+        }
+        
+        // Estimate gas fee
+        const gasPrice = await appState.provider.getGasPrice();
+        const estimatedGasLimit = await appState.collateralVaultContract.estimateGas.liquidateVault(user, tghsxToRepay);
+        const gasFee = estimatedGasLimit.mul(gasPrice);
+        elements.modalGasFee.textContent = `~${ethers.utils.formatEther(gasFee).toString()} MATIC`;
+
+        // Estimate collateral to receive (this is a simplified off-chain estimate)
+        const ethGhsPrice = await appState.collateralVaultContract.getEthGhsPrice();
+        const liquidatedETH = tghsxToRepay.mul(ethers.utils.parseEther("1")).div(ethGhsPrice);
+        const bonus = liquidatedETH.mul(500).div(10000); // 5% bonus
+        const totalETHToReceive = liquidatedETH.add(bonus);
+        elements.modalReceiveCollateral.textContent = `~${parseFloat(ethers.utils.formatEther(totalETHToReceive)).toFixed(4)} ETH`;
+
+    } catch (e) {
+        console.error("Error estimating liquidation values:", e);
+        elements.modalReceiveCollateral.textContent = `Error`;
+        elements.modalGasFee.textContent = 'Error estimating fee';
+    }
 }
 
-function handleFilterChange(event) {
-    pageState.currentFilter = event.target.value;
-    fetchTransactions(1);
+function hideLiquidationModal() {
+    elements.modal.classList.remove('show');
+    currentLiquidationTarget = null;
+}
+
+async function executeLiquidation() {
+    if (!currentLiquidationTarget) return;
+
+    const { user: userToLiquidate, debt: userDebtWei } = currentLiquidationTarget;
+    const button = document.querySelector(`button[data-user="${userToLiquidate}"]`);
+    
+    hideLiquidationModal();
+    button.disabled = true;
+    button.textContent = 'Processing...';
+
+    try {
+        if (!appState.collateralVaultContract || !appState.tghsxTokenContract) {
+            throw new Error("Contracts not initialized. Please reconnect wallet.");
+        }
+
+        const tghsxToRepay = ethers.BigNumber.from(userDebtWei).div(2);
+        
+        showToast('Checking tGHSX allowance...', 'info');
+        const allowance = await appState.tghsxTokenContract.allowance(appState.userAccount, appState.collateralVaultContract.address);
+
+        if (allowance.lt(tghsxToRepay)) {
+            showToast('Please approve the vault to spend your tGHSX.', 'info');
+            const approveTx = await appState.tghsxTokenContract.approve(appState.collateralVaultContract.address, ethers.constants.MaxUint256);
+            await approveTx.wait();
+            showToast('Approval successful. Proceeding with liquidation.', 'success');
+        }
+
+        showToast('Sending liquidation transaction...', 'info');
+        const liquidateTx = await appState.collateralVaultContract.liquidateVault(userToLiquidate, tghsxToRepay);
+        await liquidateTx.wait();
+
+        showToast('Liquidation successful!', 'success');
+        fetchAndRenderRiskyVaults();
+
+    } catch (error) {
+        console.error('Liquidation failed:', error);
+        showToast(getErrorMessage(error), 'error');
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Liquidate';
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    elements.prevPageBtn.addEventListener('click', () => fetchTransactions(pageState.currentPage - 1));
-    elements.nextPageBtn.addEventListener('click', () => fetchTransactions(pageState.currentPage + 1));
-    elements.typeFilter.addEventListener('change', handleFilterChange);
-    elements.exportBtn.addEventListener('click', exportToCSV);
+    document.addEventListener('networkConnected', fetchAndRenderRiskyVaults);
 
-    document.addEventListener('networkConnected', () => fetchTransactions(1));
-    document.addEventListener('walletDisconnected', () => {
-        pageState = { ...pageState, transactions: [], totalRecords: 0, totalPages: 1, currentPage: 1, error: null };
-        updateView();
+    elements.tableBody.addEventListener('click', (event) => {
+        const button = event.target.closest('.liquidate-btn');
+        if (button) {
+            if (!appState.signer) {
+                showToast('Please connect your wallet first.', 'error');
+                return;
+            }
+            if (appState.userAccount.toLowerCase() === button.dataset.user.toLowerCase()) {
+                showToast('You cannot liquidate your own vault.', 'error');
+                return;
+            }
+            showLiquidationModal(button.dataset);
+        }
     });
-    
-    updateView();
+
+    elements.modalConfirmBtn.addEventListener('click', executeLiquidation);
+    elements.modalCancelBtn.addEventListener('click', hideLiquidationModal);
+
+    if (appState.isCorrectNetwork) {
+        fetchAndRenderRiskyVaults();
+    }
 });
