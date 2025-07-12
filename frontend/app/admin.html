@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx.onrender.com wss://relay.walletconnect.com wss://relay.walletconnect.org; img-src 'self' https://explorer-api.walletconnect.com;">
+    <!-- FIX: Added https://explorer-api.walletconnect.com to the connect-src directive -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx.onrender.com wss://relay.walletconnect.com wss://relay.walletconnect.org https://explorer-api.walletconnect.com; img-src 'self' https://explorer-api.walletconnect.com;">
     <link rel="icon" href="../favicon.png" type="image/png">
 
     <link rel="manifest" href="../manifest.json">
@@ -60,11 +61,18 @@
                         </div>
                         <div id="ethUsdFeed" class="control-value address">Loading...</div>
                     </div>
-                    <div class="control-item">
+                    <div class="control-item ghs-price-control">
                         <div class="control-label">
-                            <span>USD/GHS Oracle Address (Immutable)</span>
+                            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 10.781c.524 1.637 2.542 2.826 5 2.826 2.458 0 4.476-1.19 5-2.826.524-1.637 2.542-2.826 5-2.826-2.458 0-4.476-1.19-5-2.826-.524-1.637-2.542-2.826-5-2.826C1.542 2.328-.476 3.517 0 5.154.476 6.79 2.458 8 5 8c2.542 0 4.524-1.21 5-2.846.476-1.637 2.458-2.846 5-2.846-2.542 0-4.524 1.21-5 2.846C9.524 6.79 7.542 8 5 8c-2.542 0-4.524-1.21-5-2.846C-.476 3.517 1.542 2.328 4 2.328c2.542 0 4.524 1.21 5 2.826.476 1.637 2.458 2.826 5 2.826-2.542 0-4.524 1.21-5 2.826z"/></svg>
+                            <span>GHS/USD Price (Owner Controlled)</span>
                         </div>
-                        <div id="usdGhsFeed" class="control-value address">Loading...</div>
+                        <div class="control-value">
+                            <span id="currentGhsPrice" class="price-display">Loading...</span>
+                        </div>
+                        <div class="update-form">
+                            <input type="number" id="newGhsPriceInput" placeholder="New GHS Price" class="input-field">
+                            <button id="updateGhsPriceBtn" class="btn btn-primary">Update Price</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -112,13 +120,5 @@
 
     <script type="module" src="../script/shared-wallet.js" defer></script>
     <script type="module" src="../script/admin.js" defer></script>
-
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('../sw.js').then(reg => console.log('SW registered for dApp page!'));
-            });
-        }
-    </script>
 </body>
 </html>

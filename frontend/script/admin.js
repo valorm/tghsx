@@ -3,12 +3,11 @@
  * Admin Dashboard Logic (admin.js)
  *
  * Manages the admin dashboard, including fetching pending mint requests,
- * controlling protocol status (pause/resume), and handling admin actions.
- * Relies on shared-wallet.js for authentication and utilities.
+ * controlling protocol status (pause/resume), and handling admin actions like
+ * updating the GHS price.
  * ==================================================================================
  */
 
-// FIX: Importing necessary functions from the shared module
 import { BACKEND_URL, showToast, logoutUser } from './shared-wallet.js';
 
 let currentToken = null;
@@ -54,7 +53,6 @@ function formatNumber(numStr) {
 /**
  * Truncates a string to a specified length.
  * @param {string} str - The string to truncate.
- * @param {number} len - The maximum length.
  * @returns {string} - The truncated string.
  */
 function truncate(str, len = 12) {
@@ -106,7 +104,9 @@ async function fetchContractStatus() {
             resumeBtn.disabled = true;
         }
         document.getElementById('ethUsdFeed').textContent = data.ethUsdPriceFeed;
-        document.getElementById('usdGhsFeed').textContent = data.usdGhsPriceFeed;
+        // --- NEW: Display the current GHS price ---
+        document.getElementById('currentGhsPrice').textContent = `GH₵ ${data.ghsUsdPrice}`;
+
     } catch (error) {
         if (error.message !== 'Unauthorized') {
              showToast(`Error fetching status: ${error.message}`, 'error');
@@ -187,10 +187,10 @@ async function refreshAllData() {
 
 /**
  * Shows a confirmation modal for a given action.
- * @param {string} action - The action type ('approve', 'decline', 'pause', 'resume').
- * @param {string} [requestId] - The ID of the mint request (if applicable).
+ * @param {string} action - The action type.
+ * @param {string} [requestIdOrPrice] - The ID of the mint request or the new price.
  */
-function showActionModal(action, requestId) {
+function showActionModal(action, requestIdOrPrice) {
     const modal = document.getElementById('actionModal');
     const titleEl = document.getElementById('modalTitle');
     const textEl = document.getElementById('modalText');
@@ -200,7 +200,8 @@ function showActionModal(action, requestId) {
         pause: { title: 'Pause Protocol', text: 'Are you sure you want to pause all protocol operations?', btnText: 'Pause', btnClass: 'btn-decline' },
         resume: { title: 'Resume Protocol', text: 'Are you sure you want to resume all protocol operations?', btnText: 'Resume', btnClass: 'btn-approve' },
         approve: { title: 'Approve Request', text: 'Are you sure you want to approve this mint request?', btnText: 'Approve', btnClass: 'btn-approve' },
-        decline: { title: 'Decline Request', text: 'Are you sure you want to decline this mint request?', btnText: 'Decline', btnClass: 'btn-decline' }
+        decline: { title: 'Decline Request', text: 'Are you sure you want to decline this mint request?', btnText: 'Decline', btnClass: 'btn-decline' },
+        updatePrice: { title: 'Update GHS Price', text: `Are you sure you want to set the new GHS/USD price to ${requestIdOrPrice}?`, btnText: 'Update Price', btnClass: 'btn-primary' }
     };
 
     const actionConfig = config[action];
@@ -213,28 +214,46 @@ function showActionModal(action, requestId) {
 
     confirmBtn.onclick = () => {
         modal.classList.remove('show');
-        handleConfirm(action, requestId);
+        handleConfirm(action, requestIdOrPrice);
     };
 }
 
 /**
  * Handles the confirmation of an action from the modal.
  * @param {string} action - The action type.
- * @param {string} [requestId] - The ID of the mint request.
+ * @param {string} [requestIdOrPrice] - The ID of the mint request or the new price.
  */
-function handleConfirm(action, requestId) {
+function handleConfirm(action, requestIdOrPrice) {
     switch (action) {
-        case 'approve': executeApprove(requestId); break;
-        case 'decline': executeDecline(requestId); break;
+        case 'approve': executeApprove(requestIdOrPrice); break;
+        case 'decline': executeDecline(requestIdOrPrice); break;
         case 'pause': executePause(); break;
         case 'resume': executeResume(); break;
+        case 'updatePrice': executeUpdateGhsPrice(requestIdOrPrice); break;
     }
 }
 
-/**
- * Executes the approval of a mint request.
- * @param {string} requestId - The ID of the mint request.
- */
+// --- NEW: Function to execute the GHS price update ---
+async function executeUpdateGhsPrice(newPrice) {
+    const btn = document.getElementById('updateGhsPriceBtn');
+    btn.disabled = true;
+    try {
+        await apiCall('/admin/update-ghs-price', { 
+            method: 'POST', 
+            body: JSON.stringify({ new_price: newPrice }) 
+        });
+        showToast('GHS price updated successfully!', 'success');
+        document.getElementById('newGhsPriceInput').value = '';
+        fetchContractStatus(); // Refresh status to show the new price
+    } catch(e) {
+        if (e.message !== 'Unauthorized') {
+            showToast(`Price update failed: ${e.message}`, 'error');
+        }
+    } finally {
+        btn.disabled = false;
+    }
+}
+
 async function executeApprove(requestId) {
     const button = document.querySelector(`button[data-request-id="${requestId}"][data-action="approve"]`);
     if(button) button.disabled = true;
@@ -250,10 +269,6 @@ async function executeApprove(requestId) {
     }
 }
 
-/**
- * Executes the decline of a mint request.
- * @param {string} requestId - The ID of the mint request.
- */
 async function executeDecline(requestId) {
     const button = document.querySelector(`button[data-request-id="${requestId}"][data-action="decline"]`);
     if(button) button.disabled = true;
@@ -269,9 +284,6 @@ async function executeDecline(requestId) {
     }
 }
 
-/**
- * Executes pausing the protocol.
- */
 async function executePause() {
     const btn = document.getElementById('pauseBtn');
     btn.disabled = true;
@@ -287,9 +299,6 @@ async function executePause() {
     }
 }
 
-/**
- * Executes resuming the protocol.
- */
 async function executeResume() {
     const btn = document.getElementById('resumeBtn');
     btn.disabled = true;
@@ -320,6 +329,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('resumeBtn').addEventListener('click', () => showActionModal('resume'));
     document.getElementById('modalCancelBtn').addEventListener('click', () => {
         document.getElementById('actionModal').classList.remove('show');
+    });
+
+    // --- NEW: Event listener for the GHS price update button ---
+    document.getElementById('updateGhsPriceBtn').addEventListener('click', () => {
+        const newPrice = document.getElementById('newGhsPriceInput').value;
+        if (!newPrice || isNaN(parseFloat(newPrice)) || parseFloat(newPrice) <= 0) {
+            showToast('Please enter a valid positive number for the price.', 'error');
+            return;
+        }
+        showActionModal('updatePrice', newPrice);
     });
 
     document.getElementById('requestsTableBody').addEventListener('click', (event) => {

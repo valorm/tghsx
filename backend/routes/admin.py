@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import Dict, Any
 from web3 import Web3
 from web3.middleware import geth_poa_middleware
+from decimal import Decimal
 
 # Import project-specific services and utilities
 from services.web3_client import get_web3_provider
@@ -24,6 +25,10 @@ try:
 except Exception as e:
     raise RuntimeError(f"Failed to load CollateralVault ABI: {e}")
 
+# --- Pydantic Models ---
+class GhsPriceUpdateRequest(BaseModel):
+    new_price: str
+
 # --- Helper function to send a transaction ---
 def send_admin_transaction(function_call):
     w3 = get_web3_provider()
@@ -31,14 +36,12 @@ def send_admin_transaction(function_call):
     
     admin_account = w3.eth.account.from_key(MINTER_PRIVATE_KEY)
     
-    # FIX: Dynamically estimate the gas limit instead of hardcoding
     try:
         gas_estimate = function_call.estimate_gas({'from': admin_account.address})
-        # Add a buffer to the estimate (e.g., 20%) for safety
         gas_limit = int(gas_estimate * 1.2)
     except Exception as e:
         print(f"Gas estimation failed: {e}. Falling back to a default limit.")
-        gas_limit = 200000 # Fallback gas limit
+        gas_limit = 200000
 
     tx_payload = {
         'from': admin_account.address,
@@ -62,24 +65,52 @@ def send_admin_transaction(function_call):
 @router.get("/status", response_model=Dict[str, Any], dependencies=[Depends(is_admin_user)])
 async def get_contract_status():
     """
-    Fetches the current status of the CollateralVault contract.
+    Fetches the current status of the CollateralVault contract, including the GHS price.
     """
     try:
         w3 = get_web3_provider()
-        w3.middleware_onion.inject(geth_poa_middleware, layer=0)
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
         
         is_paused = vault_contract.functions.paused().call()
         eth_usd_feed = vault_contract.functions.ethUsdPriceFeed().call()
-        usd_ghs_feed = vault_contract.functions.usdGhsPriceFeed().call()
-        
+        # --- NEW: Fetch the current GHS price from the contract ---
+        ghs_price_raw = vault_contract.functions.ghsUsdPrice().call()
+        # The price has 8 decimals, so we format it for display
+        ghs_price_formatted = f"{(Decimal(ghs_price_raw) / Decimal('1e8')):.4f}"
+
         return {
             "isPaused": is_paused,
             "ethUsdPriceFeed": eth_usd_feed,
-            "usdGhsPriceFeed": usd_ghs_feed
+            "ghsUsdPrice": ghs_price_formatted
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch contract status: {str(e)}")
+
+# --- NEW: Endpoint to update the GHS price ---
+@router.post("/update-ghs-price", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
+async def update_ghs_price(request: GhsPriceUpdateRequest):
+    """
+    Calls the updateGhsPrice function on the CollateralVault contract.
+    """
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
+        
+        # Convert the price string to a Decimal for precision, then to the required integer format (with 8 decimals)
+        new_price_decimal = Decimal(request.new_price)
+        new_price_wei = int(new_price_decimal * (10**8))
+
+        if new_price_wei <= 0:
+            raise HTTPException(status_code=400, detail="Price must be a positive number.")
+
+        function_call = vault_contract.functions.updateGhsPrice(new_price_wei)
+        tx_hash = send_admin_transaction(function_call)
+        
+        return {"message": "GHS price updated successfully.", "transactionHash": tx_hash}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid price format. Please enter a valid number.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update GHS price: {str(e)}")
 
 
 @router.post("/pause", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
