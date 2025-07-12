@@ -9,8 +9,7 @@ import "./TGHSXToken.sol";
 
 /**
  * @title OptimizedCollateralVault
- * @dev UPDATED FEATURES-NEW VERSION: Implements hybrid oracle model and includes
- * all necessary admin and view functions for robust testing and management.
+ * @dev Now calculates the ETH/USD price synthetically from ETH/BTC and BTC/USD feeds. The updated contract is more flexible and secure by making previously hardcoded values 
  */
 contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
     // --- Constants ---
@@ -18,14 +17,22 @@ contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant RATIO_PRECISION = 10000;
     uint256 public constant LIQUIDATION_BONUS = 500; // 5%
     uint256 public constant MAX_LIQUIDATION_PERCENT = 5000; // 50%
-    uint256 public constant PRICE_STALENESS_THRESHOLD = 3600; // 1 hour
     uint256 public constant MIN_DEBT_AMOUNT = 1e18; // 1 tGHSX
     uint256 public constant MIN_COLLATERAL_AMOUNT = 1e15; // 0.001 ETH
+    
+    // --- Configurable Parameters ---
+    uint256 public priceStalenesThreshold = 3600; // 1 hour - now configurable
+    uint256 public constant MIN_STALENESS_THRESHOLD = 300; // 5 minutes
+    uint256 public constant MAX_STALENESS_THRESHOLD = 86400; // 24 hours
 
     // --- Immutable & State Variables ---
     TGHSXToken public immutable tghsxToken;
-    AggregatorV3Interface public immutable ethUsdPriceFeed;
-    uint256 public ghsUsdPrice; 
+    
+    // --- Price feeds for synthetic ETH/USD calculation ---
+    AggregatorV3Interface public immutable ethBtcPriceFeed;
+    AggregatorV3Interface public immutable btcUsdPriceFeed;
+
+    uint256 public ghsUsdPrice; // Manually updated GHS price
 
     // --- Structs ---
     struct UserPosition {
@@ -57,10 +64,7 @@ contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
     event TGHSXBurned(address indexed user, uint256 amount, uint256 indexed newRatio);
     event VaultLiquidated(address indexed user, address indexed liquidator, uint256 repaidTGHSX, uint256 liquidatedETH, uint256 bonus);
     event GhsPriceUpdated(uint256 newPrice, address indexed updater);
-    event ConfigUpdated(uint256 minRatio, uint256 liquidationRatio, uint256 maxRatio);
-    event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
-    event StabilityFeeUpdated(uint256 oldRate, uint256 newRate);
-    event EmergencyAction(address indexed executor, string action, address indexed target);
+    event StalenesThresholdUpdated(uint256 newThreshold, address indexed updater);
 
     // --- Errors ---
     error InvalidAmount();
@@ -72,26 +76,19 @@ contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
     error TransferFailed();
     error PriceStale();
     error InvalidPrice();
-    error UnauthorizedEmergencyAction();
-    error InvalidConfiguration();
-
-    // --- Modifiers ---
-    modifier onlyEmergencyAuthorized() {
-        if (!emergencyAuthorized[msg.sender] && msg.sender != owner()) {
-            revert UnauthorizedEmergencyAction();
-        }
-        _;
-    }
+    error InvalidThreshold();
     
     // --- Constructor ---
     constructor(
         address _tghsxTokenAddress,
-        address _ethUsdPriceFeed,
+        address _ethBtcPriceFeed, // Address for ETH/BTC feed
+        address _btcUsdPriceFeed, // Address for BTC/USD feed
         address _treasury,
         uint256 _initialGhsPrice
     ) Ownable(msg.sender) {
         tghsxToken = TGHSXToken(_tghsxTokenAddress);
-        ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
+        ethBtcPriceFeed = AggregatorV3Interface(_ethBtcPriceFeed);
+        btcUsdPriceFeed = AggregatorV3Interface(_btcUsdPriceFeed);
         treasury = _treasury;
         ghsUsdPrice = _initialGhsPrice;
         
@@ -104,18 +101,71 @@ contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
         emergencyAuthorized[msg.sender] = true;
     }
 
-    // --- Price Functions ---
-    function getEthGhsPrice() public view returns (uint256) {
-        (, int256 ethUsdPrice, , uint256 ethUsdTimestamp, ) = ethUsdPriceFeed.latestRoundData();
-        if (block.timestamp - ethUsdTimestamp > PRICE_STALENESS_THRESHOLD) revert PriceStale();
-        if (ethUsdPrice <= 0 || ghsUsdPrice == 0) revert InvalidPrice();
-        return (uint256(ethUsdPrice) * ghsUsdPrice) / PRICE_PRECISION;
+    // --- Admin Functions ---
+    
+    /**
+     * @dev Check if an address has admin privileges
+     */
+    function isAdmin(address account) external view returns (bool) {
+        return account == owner();
     }
 
-    // --- Core User Functions ---
-    // --- FIX: Changed visibility from 'external' to 'public' ---
-    function deposit() public payable nonReentrant whenNotPaused {
-        if (msg.value < MIN_COLLATERAL_AMOUNT) revert InvalidAmount();
+    /**
+     * @dev Update the price staleness threshold
+     */
+    function updateStalenesThreshold(uint256 newThreshold) external onlyOwner {
+        if (newThreshold < MIN_STALENESS_THRESHOLD || newThreshold > MAX_STALENESS_THRESHOLD) {
+            revert InvalidThreshold();
+        }
+        priceStalenesThreshold = newThreshold;
+        emit StalenesThresholdUpdated(newThreshold, msg.sender);
+    }
+
+    /**
+     * @dev Update GHS price
+     */
+    function updateGhsPrice(uint256 _newPrice) external onlyOwner {
+        if (_newPrice == 0) revert InvalidPrice();
+        ghsUsdPrice = _newPrice;
+        emit GhsPriceUpdated(_newPrice, msg.sender);
+    }
+
+    // --- Price Functions ---
+
+    /**
+     * @dev Calculates the ETH price in GHS.
+     * It synthetically calculates ETH/USD from ETH/BTC and BTC/USD feeds,
+     * then multiplies by the manually set GHS/USD price.
+     */
+    function getEthGhsPrice() public view returns (uint256) {
+        // Step 1: Get ETH/BTC price
+        (, int256 ethBtcPrice, , uint256 ethBtcTimestamp, ) = ethBtcPriceFeed.latestRoundData();
+
+        // Step 2: Get BTC/USD price
+        (, int256 btcUsdPrice, , uint256 btcUsdTimestamp, ) = btcUsdPriceFeed.latestRoundData();
+
+        // Step 3: Check for stale prices - NOW USING CONFIGURABLE THRESHOLD
+        uint256 currentTime = block.timestamp;
+        if (currentTime - ethBtcTimestamp > priceStalenesThreshold || 
+            currentTime - btcUsdTimestamp > priceStalenesThreshold) {
+            revert PriceStale();
+        }
+        if (ethBtcPrice <= 0 || btcUsdPrice <= 0) {
+            revert InvalidPrice();
+        }
+
+        // Step 4: Calculate synthetic ETH/USD price
+        uint256 syntheticEthUsdPrice = uint256((ethBtcPrice * btcUsdPrice) / int256(PRICE_PRECISION));
+
+        // Step 5: Calculate final ETH/GHS price
+        uint256 ethGhsPrice = (syntheticEthUsdPrice * ghsUsdPrice) / PRICE_PRECISION;
+
+        return ethGhsPrice;
+    }
+
+    // --- Core Functions ---
+    function deposit() external payable nonReentrant whenNotPaused {
+        if (msg.value == 0) revert InvalidAmount();
         userPositions[msg.sender].ethCollateral += uint128(msg.value);
         totalValueLocked += msg.value;
         emit CollateralDeposited(msg.sender, msg.value, block.number);
@@ -175,7 +225,7 @@ contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
         if (tghsxToRepay > maxLiquidation) revert InvalidAmount();
         
         uint256 ethGhsPrice = getEthGhsPrice();
-        uint256 liquidatedETH = (tghsxToRepay * 1e18) / ethGhsPrice;
+        uint256 liquidatedETH = (tghsxToRepay * PRICE_PRECISION) / ethGhsPrice;
         uint256 bonus = (liquidatedETH * LIQUIDATION_BONUS) / RATIO_PRECISION;
         uint256 totalETH = liquidatedETH + bonus;
         
@@ -191,72 +241,12 @@ contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
         emit VaultLiquidated(user, msg.sender, tghsxToRepay, liquidatedETH, bonus);
     }
 
-    // --- Admin Functions ---
-    function updateGhsPrice(uint256 _newPrice) external onlyOwner {
-        if (_newPrice == 0) revert InvalidPrice();
-        ghsUsdPrice = _newPrice;
-        emit GhsPriceUpdated(_newPrice, msg.sender);
-    }
-
-    function updateVaultConfig(uint64 newMinRatio, uint64 newLiquidationRatio, uint64 newMaxRatio) external onlyOwner {
-        if (newLiquidationRatio == 0 || newMinRatio <= newLiquidationRatio || newMinRatio > newMaxRatio) {
-            revert InvalidConfiguration();
-        }
-        vaultConfig.minCollateralRatio = newMinRatio;
-        vaultConfig.liquidationRatio = newLiquidationRatio;
-        vaultConfig.maxCollateralRatio = newMaxRatio;
-        vaultConfig.lastConfigUpdate = uint64(block.timestamp);
-        emit ConfigUpdated(newMinRatio, newLiquidationRatio, newMaxRatio);
-    }
-
-    function updateTreasury(address newTreasury) external onlyOwner {
-        if (newTreasury == address(0)) revert InvalidAddress();
-        address oldTreasury = treasury;
-        treasury = newTreasury;
-        emit TreasuryUpdated(oldTreasury, newTreasury);
-    }
-    
-    function updateStabilityFeeRate(uint256 newRate) external onlyOwner {
-        if (newRate > 1000) revert InvalidConfiguration(); // Max 10% annual fee
-        uint256 oldRate = stabilityFeeRate;
-        stabilityFeeRate = newRate;
-        emit StabilityFeeUpdated(oldRate, newRate);
-    }
-
-    function setEmergencyAuthorization(address user, bool authorized) external onlyOwner {
-        if (user == address(0)) revert InvalidAddress();
-        emergencyAuthorized[user] = authorized;
-    }
-
-    function emergencyPause() external onlyEmergencyAuthorized {
-        _pause();
-        emit EmergencyAction(msg.sender, "PAUSE", address(this));
-    }
-    
-    function emergencyUnpause() external onlyOwner {
-        _unpause();
-        emit EmergencyAction(msg.sender, "UNPAUSE", address(this));
-    }
-
-    // --- View Functions ---
-    function getCollateralizationRatio(address user) public view returns (uint256) {
-        UserPosition memory position = userPositions[user];
-        return _calculateCollateralizationRatio(position.ethCollateral, position.tghsxMinted);
-    }
-
-    function getUserPosition(address user) external view returns (uint256 ethCollateral, uint256 tghsxMinted, uint256 collateralizationRatio) {
-        UserPosition memory position = userPositions[user];
-        ethCollateral = position.ethCollateral;
-        tghsxMinted = position.tghsxMinted;
-        collateralizationRatio = _calculateCollateralizationRatio(uint128(ethCollateral), uint128(tghsxMinted));
-    }
-
     // --- Internal Helpers ---
     function _calculateCollateralizationRatio(uint128 ethCollateral, uint128 tghsxMinted) internal view returns (uint256) {
         if (tghsxMinted == 0) return type(uint256).max;
         
         uint256 ethGhsPrice = getEthGhsPrice();
-        uint256 collateralValueGHS = (uint256(ethCollateral) * ethGhsPrice) / 1e18; // Convert from wei
+        uint256 collateralValueGHS = (uint256(ethCollateral) * ethGhsPrice) / 1e18;
         
         return (collateralValueGHS * RATIO_PRECISION) / uint256(tghsxMinted);
     }
@@ -264,12 +254,5 @@ contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
     function _transferETH(address to, uint256 amount) internal {
         (bool success, ) = payable(to).call{value: amount}("");
         if (!success) revert TransferFailed();
-    }
-
-    // --- Receive Function ---
-    receive() external payable whenNotPaused {
-        if (msg.value > 0) {
-            deposit();
-        }
     }
 }

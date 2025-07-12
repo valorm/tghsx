@@ -10,93 +10,193 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Link to the external stylesheet -->
     <link rel="stylesheet" href="../css/admin-styles.css">
 </head>
 <body>
     <div class="container">
         <header class="header">
             <h1>Admin Dashboard</h1>
-            <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+            <button id="logoutBtn" class="btn btn-secondary" aria-label="Logout from admin dashboard">
+                <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16,17 21,12 16,7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                Logout
+            </button>
         </header>
 
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Protocol Controls</h2>
-                <button id="refreshBtn" class="btn btn-secondary">
-                    <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 2.5a5.5 5.5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6.5 6.5 0 1 1 8 1.5v1z"/><path d="M8 4.466V1.5a.5.5 0 0 1 .893-.447l2.5 2.5a.5.5 0 0 1 0 .894l-2.5 2.5A.5.5 0 0 1 8 6.466z"/></svg>
-                    Refresh
-                </button>
-            </div>
-            <div class="card-content">
-                <div class="controls-grid">
-                    <div class="control-item">
-                        <div class="control-label"><span>Protocol Status</span></div>
-                        <div id="contractStatus" class="control-value">Loading...</div>
-                    </div>
-                    <div class="control-item">
-                        <div class="control-label"><span>Emergency Actions</span></div>
-                        <div class="control-value">
-                            <button id="pauseBtn" class="btn btn-decline">Pause</button>
-                            <button id="resumeBtn" class="btn btn-approve">Resume</button>
+        <main>
+            <section class="card" aria-labelledby="protocol-controls-title">
+                <div class="card-header">
+                    <h2 id="protocol-controls-title" class="card-title">Protocol Controls</h2>
+                    <button id="refreshBtn" class="btn btn-secondary" aria-label="Refresh protocol status">
+                        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23,4 23,10 17,10"></polyline>
+                            <polyline points="1,20 1,14 7,14"></polyline>
+                            <path d="M20.49,9A9,9,0,0,0,5.64,5.64L1,10m22,4L18.36,18.36A9,9,0,0,1,3.51,15"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+                <div class="card-content">
+                    <div class="controls-grid">
+                        <div class="control-item">
+                            <div class="control-label">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12,2L2,7V17C2,18.66,7.34,20,12,20S22,18.66,22,17V7L12,2Z"></path>
+                                </svg>
+                                Protocol Status
+                            </div>
+                            <div id="contractStatus" class="control-value">
+                                <span class="loading-indicator"></span>
+                                Loading...
+                            </div>
                         </div>
-                    </div>
-                    <div class="control-item">
-                        <div class="control-label"><span>ETH/USD Oracle (Immutable)</span></div>
-                        <div id="ethUsdFeed" class="control-value address">Loading...</div>
-                    </div>
-                    <div class="control-item ghs-price-control">
-                        <div class="control-label"><span>GHS/USD Price (Owner Controlled)</span></div>
-                        <div class="control-value">
-                            <span id="currentGhsPrice" class="price-display">Loading...</span>
+                        
+                        <div class="control-item">
+                            <div class="control-label">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <path d="M19.4,15A1.65,1.65,0,0,0,21,13.09,1.65,1.65,0,0,0,19.4,9"></path>
+                                    <path d="M4.6,9A1.65,1.65,0,0,0,3,10.91,1.65,1.65,0,0,0,4.6,15"></path>
+                                </svg>
+                                Emergency Actions
+                            </div>
+                            <div class="control-value">
+                                <button id="pauseBtn" class="btn btn-decline" aria-label="Pause protocol">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="6" y="4" width="4" height="16"></rect>
+                                        <rect x="14" y="4" width="4" height="16"></rect>
+                                    </svg>
+                                    Pause
+                                </button>
+                                <button id="resumeBtn" class="btn btn-approve" aria-label="Resume protocol">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polygon points="5,3 19,12 5,21"></polygon>
+                                    </svg>
+                                    Resume
+                                </button>
+                            </div>
                         </div>
-                        <div class="update-form">
-                            <input type="number" id="newGhsPriceInput" placeholder="New GHS Price" class="input-field">
-                            <button id="updateGhsPriceBtn" class="btn btn-primary">Update Price</button>
+                        
+                        <div class="control-item">
+                            <div class="control-label">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21,12.79A9,9,0,1,1,11.21,3,7,7,0,0,0,21,12.79Z"></path>
+                                </svg>
+                                ETH/USD Oracle (Immutable)
+                            </div>
+                            <div id="ethUsdFeed" class="control-value">
+                                <span class="loading-indicator"></span>
+                                <span class="address">Loading...</span>
+                            </div>
+                        </div>
+                        
+                        <div class="control-item ghs-price-control">
+                            <div class="control-label">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                                    <path d="M17,5H9.5A3.5,3.5,0,0,0,6,8.5V8.5A3.5,3.5,0,0,0,9.5,12H14.5A3.5,3.5,0,0,1,18,15.5V15.5A3.5,3.5,0,0,1,14.5,19H6"></path>
+                                </svg>
+                                GHS/USD Price (Owner Controlled)
+                            </div>
+                            <div class="control-value">
+                                <span id="currentGhsPrice" class="price-display">
+                                    <span class="loading-indicator"></span>
+                                    Loading...
+                                </span>
+                            </div>
+                            <div class="update-form">
+                                <label for="newGhsPriceInput" class="sr-only">New GHS Price in USD</label>
+                                <input 
+                                    type="number" 
+                                    id="newGhsPriceInput" 
+                                    placeholder="Enter new GHS price (USD)" 
+                                    class="input-field"
+                                    step="0.01"
+                                    min="0"
+                                    aria-describedby="price-help"
+                                >
+                                <button id="updateGhsPriceBtn" class="btn btn-primary" aria-label="Update GHS price">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M3,12A9,9,0,1,0,12,3V12L3,12Z"></path>
+                                    </svg>
+                                    Update Price
+                                </button>
+                            </div>
+                            <div id="price-help" class="sr-only">Enter the new price for GHS token in USD</div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </section>
 
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Pending Mint Requests</h2>
-                <span id="requestCount" class="control-label">0 Pending</span>
-            </div>
-            <div class="card-content no-padding">
-                <div class="table-wrapper">
-                    <table id="requestsTable" style="display: none;">
-                        <thead>
-                            <tr>
-                                <th>Submitted</th>
-                                <th>User ID</th>
-                                <th>Collateral (ETH)</th>
-                                <th>Mint Amount (tGHSX)</th>
-                                <th>Ratio (%)</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="requestsTableBody"></tbody>
-                    </table>
+            <section class="card" aria-labelledby="mint-requests-title">
+                <div class="card-header">
+                    <h2 id="mint-requests-title" class="card-title">Pending Mint Requests</h2>
+                    <span id="requestCount" class="control-label" role="status" aria-live="polite">
+                        <span class="loading-indicator"></span>
+                        Loading...
+                    </span>
                 </div>
-                <div id="loadingState" class="table-state">Loading requests...</div>
-                <div id="emptyState" class="table-state hidden">No pending requests found.</div>
-            </div>
-        </div>
+                <div class="card-content no-padding">
+                    <div class="table-wrapper">
+                        <table id="requestsTable" class="hidden" role="table" aria-label="Pending mint requests">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Submitted</th>
+                                    <th scope="col">User ID</th>
+                                    <th scope="col">Collateral (ETH)</th>
+                                    <th scope="col">Mint Amount (tGHSX)</th>
+                                    <th scope="col">Ratio (%)</th>
+                                    <th scope="col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="requestsTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div id="loadingState" class="table-state" role="status" aria-live="polite">
+                        <span class="loading-indicator"></span>
+                        Loading requests...
+                    </div>
+                    <div id="emptyState" class="table-state hidden" role="status">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5; margin-bottom: 1rem;">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M16,12L12,8L8,12"></path>
+                            <path d="M12,16L12,8"></path>
+                        </svg>
+                        <p>No pending requests found.</p>
+                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">New requests will appear here automatically.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
     
-    <div id="actionModal" class="modal-overlay">
+    <div id="actionModal" class="modal-overlay" role="dialog" aria-labelledby="modalTitle" aria-describedby="modalText" aria-modal="true">
         <div class="modal-content">
             <h3 id="modalTitle" class="modal-title">Confirm Action</h3>
-            <p id="modalText" class="modal-text">Are you sure?</p>
+            <p id="modalText" class="modal-text">Are you sure you want to proceed with this action?</p>
             <div class="modal-actions">
-                <button id="modalCancelBtn" class="btn modal-btn btn-secondary">Cancel</button>
-                <button id="modalConfirmBtn" class="btn modal-btn">Confirm</button>
+                <button id="modalCancelBtn" class="btn modal-btn btn-secondary" aria-label="Cancel action">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                    Cancel
+                </button>
+                <button id="modalConfirmBtn" class="btn modal-btn btn-primary" aria-label="Confirm action">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20,6 9,17 4,12"></polyline>
+                    </svg>
+                    Confirm
+                </button>
             </div>
         </div>
     </div>
 
-    <div id="toastNotification" class="toast"></div>
+    <div id="toastNotification" class="toast" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
     <script type="module" src="../script/shared-wallet.js" defer></script>
     <script type="module" src="../script/admin.js" defer></script>

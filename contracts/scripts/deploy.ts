@@ -3,18 +3,41 @@ import "dotenv/config";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying The Ghana Stablecoin (tGHSX) Protocol with Recommended Hybrid Oracle...");
+  console.log("🚀 Deploying with Synthetic Price Feed Logic...");
   console.log("Deploying contracts with the account:", deployer.address);
 
-  // --- Define LIVE Chainlink Price Feed Address for ETH/USD on Polygon Amoy ---
-  // This is the secure, decentralized oracle for our main collateral.
-  const ETH_USD_PRICE_FEED = "0x0715A7794a1dc8e42615F059dD6e406A6594651A"; 
-  console.log(`Using live ETH/USD Price Feed at: ${ETH_USD_PRICE_FEED}`);
+  // --- Deploy Mock Price Feeds to SIMULATE synthetic price calculation ---
+  const MockAggregatorFactory = await ethers.getContractFactory("MockV3Aggregator");
+  const MOCK_DECIMALS = 8;
 
-  // --- Define an initial price for GHS/USD to be set by the owner ---
-  // This will be set at deployment and can be updated later.
+  // 1. Deploy Mock ETH/BTC Price Feed
+  // Let's assume 1 ETH = 0.05 BTC
+  const ethBtcPrice = ethers.utils.parseUnits("0.05", MOCK_DECIMALS);
+  console.log("Deploying MockV3Aggregator for ETH/BTC...");
+  const mockEthBtcPriceFeed = await MockAggregatorFactory.deploy(
+    ethBtcPrice,
+    MOCK_DECIMALS,
+    "ETH/BTC Mock"
+  );
+  await mockEthBtcPriceFeed.deployed();
+  const ETH_BTC_PRICE_FEED = mockEthBtcPriceFeed.address;
+  console.log(`-> Mock ETH/BTC Price Feed deployed to: ${ETH_BTC_PRICE_FEED}`);
 
-  const initialGhsPrice = ethers.utils.parseUnits("10.39", 8); // 8 decimals for price feeds
+  // 2. Deploy Mock BTC/USD Price Feed
+  // Let's assume 1 BTC = $68,000
+  const btcUsdPrice = ethers.utils.parseUnits("68000", MOCK_DECIMALS);
+  console.log("Deploying MockV3Aggregator for BTC/USD...");
+  const mockBtcUsdPriceFeed = await MockAggregatorFactory.deploy(
+    btcUsdPrice,
+    MOCK_DECIMALS,
+    "BTC/USD Mock"
+  );
+  await mockBtcUsdPriceFeed.deployed();
+  const BTC_USD_PRICE_FEED = mockBtcUsdPriceFeed.address;
+  console.log(`-> Mock BTC/USD Price Feed deployed to: ${BTC_USD_PRICE_FEED}`);
+
+  // --- Define an initial price for GHS/USD ---
+  const initialGhsPrice = ethers.utils.parseUnits("10.39", MOCK_DECIMALS);
   console.log(`Setting initial GHS/USD price to 10.39`);
 
   // --- Deploy TGHSXToken ---
@@ -26,12 +49,13 @@ async function main() {
   console.log(`-> TGHSXToken deployed to: ${tghsxTokenAddress}`);
 
   // --- Deploy CollateralVault ---
-  // We pass the live ETH/USD feed and the initial GHS price.
+  // We pass the addresses of our two new mock feeds.
   const CollateralVaultFactory = await ethers.getContractFactory("CollateralVault");
   console.log("Deploying CollateralVault...");
   const collateralVault = await CollateralVaultFactory.deploy(
     tghsxTokenAddress,
-    ETH_USD_PRICE_FEED,
+    ETH_BTC_PRICE_FEED,
+    BTC_USD_PRICE_FEED,
     deployer.address, // Treasury address
     initialGhsPrice
   );
@@ -46,11 +70,12 @@ async function main() {
   await tx.wait();
   console.log("-> MINTER_BURNER_ROLE granted successfully.");
 
-  // --- Log Deployed Addresses ---
   console.log("\n--- DEPLOYMENT COMPLETE ---");
+  console.log(`\n--- Deployed Addresses ---`);
   console.log(`export TGHSX_TOKEN_ADDRESS="${tghsxTokenAddress}"`);
   console.log(`export COLLATERAL_VAULT_ADDRESS="${collateralVaultAddress}"`);
-  console.log(`\nTo update the GHS price, call the 'updateGhsPrice' function on the CollateralVault contract as the owner.`);
+  console.log(`export MOCK_ETH_BTC_PRICE_FEED_ADDRESS="${ETH_BTC_PRICE_FEED}"`);
+  console.log(`export MOCK_BTC_USD_PRICE_FEED_ADDRESS="${BTC_USD_PRICE_FEED}"`);
 }
 
 main().catch((error) => {
