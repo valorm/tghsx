@@ -16,6 +16,11 @@
 
     <title>tGHSX - Ghana Stablecoin</title>
     
+    <!-- FIX: Add polyfill for Node.js 'process' object required by WalletConnect dependencies -->
+    <script>
+        window.process = { env: { DEBUG: undefined } };
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js" integrity="sha256-pmKTpqK7Te4GGmhhK+C+PFwKt+QGirjZiko1e69mTHM=" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" xintegrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
