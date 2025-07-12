@@ -250,14 +250,12 @@ function displayVaultError(error) {
     elements.vaultCollateral.textContent = '---';
     elements.vaultDebt.textContent = '---';
     elements.vaultRatio.textContent = '---';
-    
-    // You might want to show an error message to the user
+   
     console.log('Failed to load vault data. Please try again.');
 }
 
 function showCreateVaultPrompt() {
-    // Optional: Show UI elements that encourage the user to create a vault
-    // This could be a banner, modal, or highlighted section
+    
     console.log('User has no vault position. Consider showing create vault options.');
 }
 async function loadETHPrice() {
