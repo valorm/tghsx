@@ -3,7 +3,7 @@
  * Main dApp Logic (index.js) - FINAL VERSION
  *
  * This script handles all core functionalities of the tGHSX minting and vault
- * management page (index.html). It uses direct on-chain transactions for
+ * management page (index.html). It now uses direct on-chain transactions for
  * minting and relies on the smart contract as the single source of truth for price.
  * ==================================================================================
  */

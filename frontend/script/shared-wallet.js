@@ -1,10 +1,10 @@
 /**
  * ==================================================================================
- * Shared Wallet & App Logic (shared-wallet.js) - STABILITY FIX V12
+ * Shared Wallet & App Logic (shared-wallet.js) - FINAL VERSION
  *
- * This script manages the global state for the tGHSX application.
- * This version consolidates all initialization logic to run after the DOM is
- * fully loaded, preventing race conditions and improving stability.
+ * This script manages the global state for the tGHSX application, including
+ * wallet connections, contract instances, and shared utility functions.
+ * It is designed to be imported by all other page-specific scripts.
  * ==================================================================================
  */
 
@@ -18,11 +18,11 @@ const NETWORKS = {
 };
 const REQUIRED_CHAIN_ID = 80002;
 export const BACKEND_URL = 'https://tghsx.onrender.com';
-const COLLATERAL_VAULT_ADDRESS = "0x7E72df58bD3113bD4437bc96b54Cddbe6c369399"; 
+const COLLATERAL_VAULT_ADDRESS = "0x7E72df58bD3113bD4437bc96b54Cddbe6c369399";
 const COLLATERAL_VAULT_ABI = [
-    "event CollateralDeposited(address indexed user, uint256 amount, uint256 indexed blockNumber)", "event CollateralWithdrawn(address indexed user, uint256 amount)", "event TGHSXMinted(address indexed user, uint256 amount, uint256 indexed newRatio)", "event TGHSXBurned(address indexed user, uint256 amount, uint256 indexed newRatio)", "function deposit() external payable", "function withdraw(uint256 amount) external", "function mintTGHSX(uint256 amount) external", "function burnTGHSX(uint256 amount) external", "function depositAndMint(uint256 tghsxAmountToMint) external payable", "function repayAndWithdraw(uint256 repayAmount, uint256 withdrawAmount) external", "function getEthGhsPrice() public view returns (uint256)", "function getUserCollateral(address user) external view returns (uint256)", "function getUserDebt(address user) external view returns (uint256)", "function getUserPosition(address user) external view returns (uint256, uint256, uint256)", "function tghsxToken() view returns (address)", "function liquidateVault(address user, uint256 tghsxToRepay) external", "function paused() view returns (bool)"
+    "event CollateralDeposited(address indexed,uint256,uint256)", "event TGHSXMinted(address indexed,uint256,uint256)", "event VaultLiquidated(address indexed,address indexed,uint256,uint256,uint256)", "event GhsPriceUpdated(uint256,address indexed)", "event StalenesThresholdUpdated(uint256,address indexed)", "function isAdmin(address) view returns (bool)", "function updateStalenesThreshold(uint256)", "function updateGhsPrice(uint256)", "function getEthGhsPrice() view returns (uint256)", "function deposit() payable", "function withdraw(uint256)", "function mintTGHSX(uint256)", "function burnTGHSX(uint256)", "function depositAndMint(uint256) payable", "function repayAndWithdraw(uint256,uint256)", "function liquidateVault(address,uint256)", "function getUserPosition(address) view returns (uint256,uint256,uint256)", "function tghsxToken() view returns (address)", "function paused() view returns (bool)"
 ];
-const TGHSX_ABI = [ "function approve(address spender, uint256 amount) external returns (bool)", "function allowance(address owner, address spender) external view returns (uint256)" ];
+const TGHSX_ABI = [ "function approve(address,uint256) returns (bool)", "function allowance(address,address) view returns (uint256)" ];
 
 // --- Global State ---
 export const appState = {
