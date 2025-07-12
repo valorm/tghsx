@@ -39,12 +39,7 @@ def send_admin_transaction(function_call):
     except Exception as e:
         print(f"Gas estimation failed: {e}. Falling back to a default limit.")
         gas_limit = 200000
-    tx_payload = {
-        'from': admin_account.address, 
-        'nonce': w3.eth.get_transaction_count(admin_account.address), 
-        'gas': gas_limit, 
-        'gasPrice': w3.eth.gas_price
-    }
+    tx_payload = {'from': admin_account.address, 'nonce': w3.eth.get_transaction_count(admin_account.address), 'gas': gas_limit, 'gasPrice': w3.eth.gas_price}
     tx = function_call.build_transaction(tx_payload)
     signed_tx = w3.eth.account.sign_transaction(tx, private_key=MINTER_PRIVATE_KEY)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
@@ -62,25 +57,14 @@ async def get_contract_status():
             abi=COLLATERAL_VAULT_ABI
         )
         
-        # Check if contract is paused
         is_paused = vault_contract.functions.paused().call()
-        
-        # Get price feeds - CORRECTED: These are the actual contract functions
         eth_btc_feed = vault_contract.functions.ethBtcPriceFeed().call()
         btc_usd_feed = vault_contract.functions.btcUsdPriceFeed().call()
-        
-        # Get GHS price
         ghs_price_raw = vault_contract.functions.ghsUsdPrice().call()
         ghs_price_formatted = f"{(Decimal(ghs_price_raw) / Decimal('1e8')):.4f}"
-        
-        # Get staleness threshold - CORRECTED: Fixed typo
         staleness_threshold = vault_contract.functions.priceStalenesThreshold().call()
-        
-        # Get total value locked
         total_value_locked = vault_contract.functions.totalValueLocked().call()
         tvl_eth = f"{(Decimal(total_value_locked) / Decimal('1e18')):.4f}"
-        
-        # Get vault config
         vault_config = vault_contract.functions.vaultConfig().call()
         
         return {
@@ -111,20 +95,13 @@ async def update_ghs_price(request: GhsPriceUpdateRequest):
             address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
             abi=COLLATERAL_VAULT_ABI
         )
-        
         new_price_decimal = Decimal(request.new_price)
         new_price_wei = int(new_price_decimal * (10**8))
-        
         if new_price_wei <= 0:
             raise HTTPException(status_code=400, detail="Price must be a positive number.")
-        
         function_call = vault_contract.functions.updateGhsPrice(new_price_wei)
         tx_hash = send_admin_transaction(function_call)
-        
-        return {
-            "message": "GHS price updated successfully.", 
-            "transactionHash": tx_hash
-        }
+        return {"message": "GHS price updated successfully.", "transactionHash": tx_hash}
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid price format.")
     except Exception as e:
@@ -141,24 +118,15 @@ async def update_staleness_threshold(request: StalenessThresholdUpdateRequest):
             address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
             abi=COLLATERAL_VAULT_ABI
         )
-        
         new_threshold = request.new_threshold
-        
-        # Validate threshold range (5 minutes to 24 hours)
         if new_threshold < 300 or new_threshold > 86400:
             raise HTTPException(
                 status_code=400, 
                 detail="Threshold must be between 300 seconds (5 minutes) and 86400 seconds (24 hours)."
             )
-        
-        # CORRECTED: Use the correct function name
         function_call = vault_contract.functions.updateStalenesThreshold(new_threshold)
         tx_hash = send_admin_transaction(function_call)
-        
-        return {
-            "message": "Price staleness threshold updated successfully.", 
-            "transactionHash": tx_hash
-        }
+        return {"message": "Price staleness threshold updated successfully.", "transactionHash": tx_hash}
     except Exception as e:
         raise HTTPException(
             status_code=500, 
@@ -173,15 +141,10 @@ async def pause_contract():
             address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
             abi=COLLATERAL_VAULT_ABI
         )
-        
-        # CORRECTED: Use the standard Pausable function
-        function_call = vault_contract.functions.pause()
+        # --- FIX: Call the correct function name from the contract ---
+        function_call = vault_contract.functions.emergencyPause()
         tx_hash = send_admin_transaction(function_call)
-        
-        return {
-            "message": "Protocol paused successfully.", 
-            "transactionHash": tx_hash
-        }
+        return {"message": "Protocol paused successfully.", "transactionHash": tx_hash}
     except Exception as e:
         raise HTTPException(
             status_code=500, 
@@ -196,35 +159,27 @@ async def unpause_contract():
             address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
             abi=COLLATERAL_VAULT_ABI
         )
-        
-        # CORRECTED: Use the standard Pausable function
-        function_call = vault_contract.functions.unpause()
+        # --- FIX: Call the correct function name from the contract ---
+        function_call = vault_contract.functions.emergencyUnpause()
         tx_hash = send_admin_transaction(function_call)
-        
-        return {
-            "message": "Protocol resumed successfully.", 
-            "transactionHash": tx_hash
-        }
+        return {"message": "Protocol resumed successfully.", "transactionHash": tx_hash}
     except Exception as e:
         raise HTTPException(
             status_code=500, 
             detail=f"Failed to resume protocol: {str(e)}"
         )
 
-# NEW: Additional admin endpoints for better monitoring
+# --- The rest of the file remains the same ---
 @router.get("/check-admin", response_model=Dict[str, bool], dependencies=[Depends(is_admin_user)])
 async def check_admin_status():
-    """Check if the current user has admin privileges"""
     try:
         w3 = get_web3_provider()
         vault_contract = w3.eth.contract(
             address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
             abi=COLLATERAL_VAULT_ABI
         )
-        
         admin_account = w3.eth.account.from_key(MINTER_PRIVATE_KEY)
         is_admin = vault_contract.functions.isAdmin(admin_account.address).call()
-        
         return {"isAdmin": is_admin}
     except Exception as e:
         raise HTTPException(
@@ -234,18 +189,14 @@ async def check_admin_status():
 
 @router.get("/price-feeds", response_model=Dict[str, Any])
 async def get_price_feeds():
-    """Get current price feed data"""
     try:
         w3 = get_web3_provider()
         vault_contract = w3.eth.contract(
             address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
             abi=COLLATERAL_VAULT_ABI
         )
-        
-        # Get current ETH/GHS price
         eth_ghs_price = vault_contract.functions.getEthGhsPrice().call()
         eth_ghs_formatted = f"{(Decimal(eth_ghs_price) / Decimal('1e8')):.8f}"
-        
         return {
             "ethGhsPrice": eth_ghs_formatted,
             "ethGhsPriceRaw": eth_ghs_price
