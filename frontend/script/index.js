@@ -1,18 +1,14 @@
 /**
  * ==================================================================================
- * Main dApp Logic (index.js)
+ * Main dApp Logic (index.js) - FINAL VERSION
  *
  * This script handles all core functionalities of the tGHSX minting and vault
- * management page (index.html). It includes:
- * - State management for UI elements and blockchain data.
- * - Interaction with the CollateralVault smart contract.
- * - UI updates, calculations for collateral ratio, fees, etc.
- * - Handling user transactions (mint, repay, withdraw).
- * - Relies on shared-wallet.js for wallet connection and utilities.
+ * management page (index.html). It uses direct on-chain transactions for
+ * minting and relies on the smart contract as the single source of truth for price.
  * ==================================================================================
  */
 
-import { appState, showToast, getErrorMessage, BACKEND_URL } from './shared-wallet.js';
+import { appState, showToast, getErrorMessage, BACKEND_URL, formatAddress } from './shared-wallet.js';
 
 const CONFIG = {
     LIMITS: {
@@ -26,11 +22,9 @@ const CONFIG = {
     },
     UI: { 
         DEBOUNCE_DELAY: 300, 
-        POLLING_INTERVAL: 5000 // 5 seconds for mint status
     },
-    // Fallback gas units in case estimation fails.
     GAS_UNITS: { 
-        DEPOSIT_MINT: 180000, 
+        DEPOSIT_MINT: 200000, 
         REPAY_WITHDRAW: 220000 
     },
 };
@@ -236,9 +230,9 @@ async function loadETHPrice() {
     try {
         localState.lastEthPrice = localState.ethPriceGHS;
         const priceWei = await appState.collateralVaultContract.getEthGhsPrice();
-        localState.ethPriceGHS = parseFloat(ethers.utils.formatUnits(priceWei, 18)); // Price is now 18 decimals
+        localState.ethPriceGHS = parseFloat(ethers.utils.formatUnits(priceWei, 8));
     } catch (error) {
-         console.error(`On-chain price fetch failed: ${error.message}.`);
+         console.error(`On-chain price fetch failed: ${getErrorMessage(error)}`);
          showToast("Could not fetch live price from the blockchain.", "error");
     } finally {
         localState.lastPriceUpdate = new Date();
