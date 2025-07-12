@@ -218,9 +218,48 @@ async function loadUserVaultData() {
 
     } catch (error) {
         console.error('Error loading vault data:', error);
+        
+        // Handle the specific case where user doesn't have a vault position
+        if (error.code === 'CALL_EXCEPTION') {
+            console.log('No vault position found for this account - showing default values');
+            displayEmptyVaultState();
+        } else {
+            // Handle other types of errors (network issues, etc.)
+            displayVaultError(error);
+        }
     }
 }
 
+function displayEmptyVaultState() {
+    // Set default values for new users
+    elements.vaultCollateral.textContent = '0.0000';
+    elements.vaultDebt.textContent = '0.00';
+    elements.vaultRatio.textContent = '∞%';
+    
+    // Update UI elements to show "no vault" state
+    updateHealthBadge(Infinity);
+    updateLiquidationPrice();
+    updateRiskMeter(Infinity);
+    
+    // Optionally show a message or different UI state
+    showCreateVaultPrompt();
+}
+
+function displayVaultError(error) {
+    // Show error state in UI
+    elements.vaultCollateral.textContent = '---';
+    elements.vaultDebt.textContent = '---';
+    elements.vaultRatio.textContent = '---';
+    
+    // You might want to show an error message to the user
+    console.log('Failed to load vault data. Please try again.');
+}
+
+function showCreateVaultPrompt() {
+    // Optional: Show UI elements that encourage the user to create a vault
+    // This could be a banner, modal, or highlighted section
+    console.log('User has no vault position. Consider showing create vault options.');
+}
 async function loadETHPrice() {
     if (!appState.collateralVaultContract) {
         console.warn("Cannot load price, contract not ready.");
