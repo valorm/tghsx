@@ -1,12 +1,10 @@
 /**
  * ==================================================================================
- * Shared Wallet & App Logic (shared-wallet.js) - PATCHED V9
+ * Shared Wallet & App Logic (shared-wallet.js) - CHAIN SWITCH FIX V10
  *
  * This script manages the global state for the tGHSX application.
- * This version includes critical patches for WalletConnect session handling:
- * - Upgraded to ethereum-provider v2.13.0.
- * - Added a guarded listener for `session_update` events.
- * - Refined the window `focus` listener for safer session recovery.
+ * This version includes a critical fix to proactively handle network mismatches
+ * by prompting the user to switch to the correct chain.
  * ==================================================================================
  */
 
@@ -50,6 +48,7 @@ async function initializeWalletConnect() {
         walletConnectProvider = await EthereumProvider.init({
             projectId,
             chains: [REQUIRED_CHAIN_ID],
+            optionalChains: Object.keys(NETWORKS).map(Number).filter(id => id !== REQUIRED_CHAIN_ID),
             showQrModal: true,
             qrModalOptions: { themeMode: "dark" },
             metadata: {
@@ -64,7 +63,6 @@ async function initializeWalletConnect() {
             console.log('[WalletConnect] Event: session_proposal received.', proposal);
         });
 
-        // PATCH: Add a guarded listener for session_update to prevent crashes.
         walletConnectProvider.on('session_update', (params) => {
             if (!params || !params.namespaces) {
                 console.warn('[WalletConnect] Skipping empty session_update payload');
@@ -192,9 +190,10 @@ async function setupProviderAndState(provider, account) {
     appState.signer = provider.getSigner();
     appState.userAccount = account;
 
-    await checkNetwork();
+    // This will now attempt to switch the chain if incorrect
+    const isNetworkCorrect = await checkNetwork();
     
-    if (appState.isCorrectNetwork) {
+    if (isNetworkCorrect) {
         await initializeContracts();
         await fetchProtocolStatus();
         await saveWalletAddressToBackend(account);
@@ -226,20 +225,59 @@ function listenToProviderEvents() {
     });
 }
 
+/**
+ * Prompts the user to switch to the required blockchain network.
+ * @returns {Promise<boolean>} - True if the switch was successful or not needed, false otherwise.
+ */
+async function switchChain() {
+    const provider = appState.connectionType === 'metamask' ? window.ethereum : walletConnectProvider;
+    if (!provider) return false;
+
+    try {
+        await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: `0x${REQUIRED_CHAIN_ID.toString(16)}` }],
+        });
+        return true;
+    } catch (switchError) {
+        // This error code indicates that the chain has not been added to MetaMask.
+        // In a real app, you would add the chain here.
+        if (switchError.code === 4902) {
+            showToast(`Please add ${NETWORKS[REQUIRED_CHAIN_ID]} to your wallet.`, 'error');
+        } else {
+            showToast('Failed to switch network. Please do it manually.', 'error');
+        }
+        console.error("Failed to switch chain:", switchError);
+        return false;
+    }
+}
+
+/**
+ * Checks if the wallet is connected to the correct network. If not, it prompts the user to switch.
+ * @returns {Promise<boolean>} - True if the network is correct, false otherwise.
+ */
 async function checkNetwork() {
-    if (!appState.provider) return;
+    if (!appState.provider) return false;
     try {
         const network = await appState.provider.getNetwork();
-        appState.isCorrectNetwork = network.chainId === REQUIRED_CHAIN_ID;
         appState.networkName = NETWORKS[network.chainId] || `Unsupported (ID: ${network.chainId})`;
-        if (!appState.isCorrectNetwork) {
-            showToast(`Please switch to ${NETWORKS[REQUIRED_CHAIN_ID]}.`, 'error');
+        
+        if (network.chainId === REQUIRED_CHAIN_ID) {
+            appState.isCorrectNetwork = true;
+            return true;
+        } else {
+            appState.isCorrectNetwork = false;
+            showToast(`Wrong network. Please switch to ${NETWORKS[REQUIRED_CHAIN_ID]}.`, 'warning');
+            // Proactively ask the user to switch
+            return await switchChain();
         }
     } catch (error) {
         console.error('Error checking network:', error);
         resetWalletState();
+        return false;
     }
 }
+
 
 export async function disconnectWallet() {
     console.log("Disconnecting wallet...");
@@ -382,6 +420,7 @@ export function getErrorMessage(error) {
     if (error.code) {
         switch (error.code) {
             case 4001: return 'Transaction cancelled by user.';
+            case 4902: return 'Network not added to wallet. Please add Polygon Amoy.';
             case -32603: return 'Internal JSON-RPC error. The contract may have rejected the transaction.';
             case -32002: return 'Request already pending. Please check your wallet.';
             case 'UNPREDICTABLE_GAS_LIMIT': return 'Transaction cannot be completed. The collateral ratio is likely out of the allowed range.';
@@ -450,7 +489,6 @@ function initializeApp() {
     
     document.addEventListener('visibilitychange', handleVisibilityChange, false);
     
-    // PATCH: Refined focus listener for safer session recovery.
     window.addEventListener('focus', () => {
         console.log('[Focus] Checking for wallet session on refocus');
         if (!appState.userAccount || !appState.provider) {
