@@ -3,18 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- FIX: Added https://explorer-api.walletconnect.com to the connect-src directive -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx.onrender.com wss://relay.walletconnect.com wss://relay.walletconnect.org https://explorer-api.walletconnect.com; img-src 'self' https://explorer-api.walletconnect.com;">
     <link rel="icon" href="../favicon.png" type="image/png">
-
     <link rel="manifest" href="../manifest.json">
-    <meta name="theme-color" content="#1a1a2e">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="tGHSX">
-    <link rel="apple-touch-icon" href="../images/icons/icon-192x192.png">
-
     <title>Admin Dashboard - tGHSX</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -39,33 +30,22 @@
             <div class="card-content">
                 <div class="controls-grid">
                     <div class="control-item">
-                        <div class="control-label">
-                            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zM3.5 8a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 0 1H4a.5.5 0 0 1-.5-.5z"/></svg>
-                            <span>Protocol Status</span>
-                        </div>
+                        <div class="control-label"><span>Protocol Status</span></div>
                         <div id="contractStatus" class="control-value">Loading...</div>
                     </div>
                     <div class="control-item">
-                        <div class="control-label">
-                            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4.54.146A.5.5 0 0 1 4.893 0h6.214a.5.5 0 0 1 .353.146l4.394 4.394a.5.5 0 0 1 .146.353v6.214a.5.5 0 0 1-.146.353l-4.394 4.394a.5.5 0 0 1-.353.146H4.893a.5.5 0 0 1-.353-.146L.146 11.46A.5.5 0 0 1 0 11.107V4.893a.5.5 0 0 1 .146-.353L4.54.146zM5.1 1 1 5.1v5.8L5.1 15h5.8l4.1-4.1V5.1L10.9 1H5.1z"/></svg>
-                            <span>Emergency Actions</span>
-                        </div>
+                        <div class="control-label"><span>Emergency Actions</span></div>
                         <div class="control-value">
                             <button id="pauseBtn" class="btn btn-decline">Pause</button>
                             <button id="resumeBtn" class="btn btn-approve">Resume</button>
                         </div>
                     </div>
                     <div class="control-item">
-                        <div class="control-label">
-                            <span>ETH/USD Oracle Address (Immutable)</span>
-                        </div>
+                        <div class="control-label"><span>ETH/USD Oracle (Immutable)</span></div>
                         <div id="ethUsdFeed" class="control-value address">Loading...</div>
                     </div>
                     <div class="control-item ghs-price-control">
-                        <div class="control-label">
-                            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 10.781c.524 1.637 2.542 2.826 5 2.826 2.458 0 4.476-1.19 5-2.826.524-1.637 2.542-2.826 5-2.826-2.458 0-4.476-1.19-5-2.826-.524-1.637-2.542-2.826-5-2.826C1.542 2.328-.476 3.517 0 5.154.476 6.79 2.458 8 5 8c2.542 0 4.524-1.21 5-2.846.476-1.637 2.458-2.846 5-2.846-2.542 0-4.524 1.21-5 2.846C9.524 6.79 7.542 8 5 8c-2.542 0-4.524-1.21-5-2.846C-.476 3.517 1.542 2.328 4 2.328c2.542 0 4.524 1.21 5 2.826.476 1.637 2.458 2.826 5 2.826-2.542 0-4.524 1.21-5 2.826z"/></svg>
-                            <span>GHS/USD Price (Owner Controlled)</span>
-                        </div>
+                        <div class="control-label"><span>GHS/USD Price (Owner Controlled)</span></div>
                         <div class="control-value">
                             <span id="currentGhsPrice" class="price-display">Loading...</span>
                         </div>
@@ -81,7 +61,7 @@
         <div class="card">
             <div class="card-header">
                 <h2 class="card-title">Pending Mint Requests</h2>
-                <span id="requestCount" class="control-label"></span>
+                <span id="requestCount" class="control-label">0 Pending</span>
             </div>
             <div class="card-content no-padding">
                 <div class="table-wrapper">

@@ -14,9 +14,6 @@ let currentToken = null;
 
 /**
  * A wrapper for making authenticated API calls to the backend.
- * @param {string} endpoint - The API endpoint to call.
- * @param {object} options - Fetch options (method, body, etc.).
- * @returns {Promise<object>} - The JSON response from the API.
  */
 async function apiCall(endpoint, options = {}) {
     const headers = {
@@ -39,32 +36,17 @@ async function apiCall(endpoint, options = {}) {
     return response.status === 204 ? {} : response.json();
 }
 
-/**
- * Formats a number string into a locale-specific string.
- * @param {string} numStr - The number string to format.
- * @returns {string} - The formatted number.
- */
 function formatNumber(numStr) {
     const num = parseFloat(numStr);
     if (isNaN(num)) return 'N/A';
     return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
-/**
- * Truncates a string to a specified length.
- * @param {string} str - The string to truncate.
- * @returns {string} - The truncated string.
- */
 function truncate(str, len = 12) {
     if (!str || str.length <= len) return str;
     return `${str.slice(0, len)}...`;
 }
 
-/**
- * Converts a date string to a "time ago" format.
- * @param {string} dateString - The ISO date string.
- * @returns {string} - The relative time string (e.g., "5 minutes ago").
- */
 function timeAgo(dateString) {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -104,7 +86,6 @@ async function fetchContractStatus() {
             resumeBtn.disabled = true;
         }
         document.getElementById('ethUsdFeed').textContent = data.ethUsdPriceFeed;
-        // --- NEW: Display the current GHS price ---
         document.getElementById('currentGhsPrice').textContent = `GH₵ ${data.ghsUsdPrice}`;
 
     } catch (error) {
@@ -187,8 +168,6 @@ async function refreshAllData() {
 
 /**
  * Shows a confirmation modal for a given action.
- * @param {string} action - The action type.
- * @param {string} [requestIdOrPrice] - The ID of the mint request or the new price.
  */
 function showActionModal(action, requestIdOrPrice) {
     const modal = document.getElementById('actionModal');
@@ -220,8 +199,6 @@ function showActionModal(action, requestIdOrPrice) {
 
 /**
  * Handles the confirmation of an action from the modal.
- * @param {string} action - The action type.
- * @param {string} [requestIdOrPrice] - The ID of the mint request or the new price.
  */
 function handleConfirm(action, requestIdOrPrice) {
     switch (action) {
@@ -233,7 +210,9 @@ function handleConfirm(action, requestIdOrPrice) {
     }
 }
 
-// --- NEW: Function to execute the GHS price update ---
+/**
+ * Executes the GHS price update.
+ */
 async function executeUpdateGhsPrice(newPrice) {
     const btn = document.getElementById('updateGhsPriceBtn');
     btn.disabled = true;
@@ -244,7 +223,7 @@ async function executeUpdateGhsPrice(newPrice) {
         });
         showToast('GHS price updated successfully!', 'success');
         document.getElementById('newGhsPriceInput').value = '';
-        fetchContractStatus(); // Refresh status to show the new price
+        fetchContractStatus();
     } catch(e) {
         if (e.message !== 'Unauthorized') {
             showToast(`Price update failed: ${e.message}`, 'error');
@@ -331,7 +310,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('actionModal').classList.remove('show');
     });
 
-    // --- NEW: Event listener for the GHS price update button ---
     document.getElementById('updateGhsPriceBtn').addEventListener('click', () => {
         const newPrice = document.getElementById('newGhsPriceInput').value;
         if (!newPrice || isNaN(parseFloat(newPrice)) || parseFloat(newPrice) <= 0) {
