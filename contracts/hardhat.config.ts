@@ -2,9 +2,10 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "dotenv/config";
 
-const POLYGON_AMOY_RPC_URL = process.env.POLYGON_AMOY_RPC_URL || "";
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
-const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY;
+//environment variables are set.
+const POLYGON_AMOY_RPC_URL = process.env.POLYGON_AMOY_RPC_URL || "https://rpc-amoy.polygon.technology/";
+const PRIVATE_KEY = process.env.PRIVATE_KEY || "your_private_key";
+const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY || "your_polygonscan_api_key";
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -16,20 +17,24 @@ const config: HardhatUserConfig = {
       },
     },
   },
+  defaultNetwork: "hardhat",
   networks: {
-
+    // Configuration for the Polygon Amoy testnet
     amoy: {
       url: POLYGON_AMOY_RPC_URL,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-      chainId: 80002, // Polygon Amoy Chain ID
+      accounts: PRIVATE_KEY !== "your_private_key" ? [PRIVATE_KEY] : [],
+      chainId: 80002,
     },
-    hardhat: { // Keep hardhat network for local testing
+    // Configuration for the local Hardhat network (for testing)
+    hardhat: {
       chainId: 31337,
     },
   },
   etherscan: {
+    // API key for PolygonScan
     apiKey: {
-      amoy: POLYGONSCAN_API_KEY || "",
+     
+      amoy: POLYGONSCAN_API_KEY,
     },
     customChains: [
       {
@@ -50,6 +55,7 @@ const config: HardhatUserConfig = {
   },
   paths: {
     sources: "./contracts",
+    tests: "./test",
     cache: "./cache",
     artifacts: "./artifacts",
   }

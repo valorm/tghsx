@@ -9,7 +9,7 @@ import "./TGHSXToken.sol";
 
 /**
  * @title OptimizedCollateralVault
- * @dev UPDATED FEATURES-NEW VERSION: Implements the hybrid oracle model and includes
+ * @dev UPDATED FEATURES-NEW VERSION: Implements hybrid oracle model and includes
  * all necessary admin and view functions for robust testing and management.
  */
 contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
@@ -113,8 +113,9 @@ contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
     }
 
     // --- Core User Functions ---
-    function deposit() external payable nonReentrant whenNotPaused {
-        if (msg.value == 0) revert InvalidAmount();
+    // --- FIX: Changed visibility from 'external' to 'public' ---
+    function deposit() public payable nonReentrant whenNotPaused {
+        if (msg.value < MIN_COLLATERAL_AMOUNT) revert InvalidAmount();
         userPositions[msg.sender].ethCollateral += uint128(msg.value);
         totalValueLocked += msg.value;
         emit CollateralDeposited(msg.sender, msg.value, block.number);
@@ -247,7 +248,7 @@ contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
         UserPosition memory position = userPositions[user];
         ethCollateral = position.ethCollateral;
         tghsxMinted = position.tghsxMinted;
-        collateralizationRatio = _calculateCollateralizationRatio(ethCollateral, tghsxMinted);
+        collateralizationRatio = _calculateCollateralizationRatio(uint128(ethCollateral), uint128(tghsxMinted));
     }
 
     // --- Internal Helpers ---
@@ -263,5 +264,12 @@ contract CollateralVault is Ownable, ReentrancyGuard, Pausable {
     function _transferETH(address to, uint256 amount) internal {
         (bool success, ) = payable(to).call{value: amount}("");
         if (!success) revert TransferFailed();
+    }
+
+    // --- Receive Function ---
+    receive() external payable whenNotPaused {
+        if (msg.value > 0) {
+            deposit();
+        }
     }
 }

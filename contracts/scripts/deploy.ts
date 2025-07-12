@@ -3,7 +3,7 @@ import "dotenv/config";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("🚀 Deploying The Ghana Stablecoin (tGHSX) Protocol with Recommended Hybrid Oracle...");
+  console.log("Deploying The Ghana Stablecoin (tGHSX) Protocol with Recommended Hybrid Oracle...");
   console.log("Deploying contracts with the account:", deployer.address);
 
   // --- Define LIVE Chainlink Price Feed Address for ETH/USD on Polygon Amoy ---
@@ -13,7 +13,7 @@ async function main() {
 
   // --- Define an initial price for GHS/USD to be set by the owner ---
   // This will be set at deployment and can be updated later.
-  // Using the price from the image provided: 10.39 GHS per USD.
+
   const initialGhsPrice = ethers.utils.parseUnits("10.39", 8); // 8 decimals for price feeds
   console.log(`Setting initial GHS/USD price to 10.39`);
 
