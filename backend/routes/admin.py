@@ -1,15 +1,18 @@
 from flask import Blueprint, request, jsonify
-from services.web3_service import w3
+from dependencies import w3, supabase_client
 from services.contract_service import get_collateral_vault_contract, get_tghsx_token_contract
 from services.oracle_service import get_price_from_oracle, update_price_in_oracle
-from services.supabase_client import get_supabase_admin_client
 from utils.auth import admin_required
 
 admin_routes = Blueprint('admin', __name__)
 
-@admin_routes.route('/protocol-stats', methods=['GET'])
+@admin_routes.route('/status', methods=['GET'])
 @admin_required
-def get_protocol_stats(user_id):
+def get_protocol_status(user_id):
+    """
+    New endpoint to provide a status/statistics overview for the admin panel.
+    This matches the frontend's request to /api/v1/admin/status.
+    """
     try:
         collateral_vault = get_collateral_vault_contract()
         total_collateral = collateral_vault.functions.totalCollateral().call()
@@ -19,23 +22,33 @@ def get_protocol_stats(user_id):
         
         return jsonify({
             'total_collateral_wei': total_collateral,
-            'total_tghsx_supply_wei': total_supply
+            'total_tghsx_supply_wei': total_supply,
+            'status': 'ok'
         }), 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@admin_routes.route('/protocol-stats', methods=['GET'])
+@admin_required
+def get_protocol_stats(user_id):
+    """
+    This is an alias for the new /status endpoint for any older references.
+    """
+    return get_protocol_status(user_id)
+
 
 @admin_routes.route('/user-balances', methods=['GET'])
 @admin_required
 def get_user_balances(user_id):
     try:
-        supabase_admin = get_supabase_admin_client()
-        users = supabase_admin.table('profiles').select('wallet_address').execute()
+        users = supabase_client.table('profiles').select('wallet_address').execute()
         balances = []
         collateral_vault = get_collateral_vault_contract()
         tghsx_token = get_tghsx_token_contract()
 
         for user in users.data:
             address = user['wallet_address']
+            if not address: continue
             collateral_balance = collateral_vault.functions.getCollateralBalance(address).call()
             tghsx_balance = tghsx_token.functions.balanceOf(address).call()
             balances.append({
@@ -56,44 +69,8 @@ def update_oracle(user_id):
         return jsonify({'error': 'Price is required'}), 400
     
     try:
-        tx_hash = update_price_in_oracle(new_price)
+        tx_hash = update_price_in_oracle(int(new_price))
         return jsonify({'message': 'Oracle price updated', 'tx_hash': tx_hash}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@admin_routes.route('/mint-tghsx', methods=['POST'])
-@admin_required
-def mint_tghsx_for_user(user_id):
-    data = request.get_json()
-    user_address = data.get('user_address')
-    amount = data.get('amount')
-
-    if not user_address or not amount:
-        return jsonify({'error': 'User address and amount are required'}), 400
-
-    try:
-        tghsx_token = get_tghsx_token_contract()
-        tx = tghsx_token.functions.mint(user_address, w3.to_wei(amount, 'ether')).transact({'from': w3.eth.default_account})
-        tx_receipt = w3.eth.wait_for_transaction_receipt(tx)
-        return jsonify({'message': 'TGHSX minted successfully', 'tx_hash': tx_receipt.transactionHash.hex()}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@admin_routes.route('/burn-tghsx', methods=['POST'])
-@admin_required
-def burn_tghsx_for_user(user_id):
-    data = request.get_json()
-    user_address = data.get('user_address')
-    amount = data.get('amount')
-
-    if not user_address or not amount:
-        return jsonify({'error': 'User address and amount are required'}), 400
-
-    try:
-        tghsx_token = get_tghsx_token_contract()
-        tx = tghsx_token.functions.burnFrom(user_address, w3.to_wei(amount, 'ether')).transact({'from': w3.eth.default_account})
-        tx_receipt = w3.eth.wait_for_transaction_receipt(tx)
-        return jsonify({'message': 'TGHSX burned successfully', 'tx_hash': tx_receipt.transactionHash.hex()}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -107,8 +84,7 @@ def grant_admin_role(user_id):
         return jsonify({'error': 'Target user_id is required'}), 400
 
     try:
-        supabase_admin = get_supabase_admin_client()
-        updated_user = supabase_admin.table('profiles').update({'is_admin': True}).eq('user_id', target_user_id).execute()
+        updated_user = supabase_client.table('profiles').update({'is_admin': True}).eq('id', target_user_id).execute()
         
         if not updated_user.data:
             return jsonify({'error': 'User not found or could not be updated.'}), 404
