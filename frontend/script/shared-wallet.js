@@ -19,10 +19,6 @@ const NETWORKS = {
 const REQUIRED_CHAIN_ID = 80002;
 export const BACKEND_URL = 'https://tghsx.onrender.com';
 const COLLATERAL_VAULT_ADDRESS = "0xA54664Aa9826aE086Eee66a82080aaB937343AB8";
-
-// FIX: Updated ABI to include all necessary functions and events
-// This ABI includes all functions and events required for the tGHSX protocol.
-// Ensure this matches the deployed contract on the Polygon Amoy Testnet.
 const COLLATERAL_VAULT_ABI = [
     "event CollateralDeposited(address indexed user, uint256 amount, uint256 indexed blockNumber)",
     "event CollateralWithdrawn(address indexed user, uint256 amount)",
@@ -52,7 +48,6 @@ const COLLATERAL_VAULT_ABI = [
     "function pause()",
     "function unpause()"
 ];
-
 const TGHSX_ABI = [ "function approve(address,uint256) returns (bool)", "function allowance(address,address) view returns (uint256)" ];
 
 // --- Global State ---
@@ -330,14 +325,40 @@ async function fetchProtocolStatus() {
 async function saveWalletAddressToBackend(walletAddress) {
     const token = localStorage.getItem('accessToken');
     if (!token) return;
+    
     try {
-        await fetch(`${BACKEND_URL}/vault/save-wallet-address`, {
+        const response = await fetch(`${BACKEND_URL}/vault/save-wallet-address`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ wallet_address: walletAddress })
         });
+
+        // FIX: Specifically handle the 409 Conflict error from the backend.
+        if (response.status === 409) {
+            const errorData = await response.json();
+            showToast(errorData.detail || 'This wallet is already linked to another account.', 'error');
+            // Disconnect the wallet on the frontend to force the user to choose a different one.
+            disconnectWallet(); 
+            return;
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Failed to save wallet address.' }));
+            throw new Error(errorData.detail);
+        }
+
+        const result = await response.json();
+        // Only show success toast for a new connection, not a reconnection.
+        if (result.status !== 'reconnected') {
+             showToast('Wallet linked to your account successfully!', 'success');
+        }
+
     } catch (error) {
         console.error('Error saving wallet address:', error);
+        // Avoid showing a generic toast if a specific one (like 409) was already handled.
+        if (response && response.status !== 409) {
+            showToast('Could not link wallet to your account.', 'error');
+        }
     }
 }
 
