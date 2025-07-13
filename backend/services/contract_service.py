@@ -1,6 +1,27 @@
 import os
+import json
 from dependencies import w3
-from utils.abi_loader import load_abi
+
+def load_abi(name):
+    """
+    Loads a contract ABI from the 'abi' directory.
+    This function is now part of contract_service to avoid import cycles.
+    """
+    # Construct the full path to the ABI file
+    # __file__ is the path to the current file (contract_service.py)
+    # os.path.dirname(__file__) is the directory it's in (services)
+    # '..' goes up one level to the 'backend' directory
+    path = os.path.join(os.path.dirname(__file__), '..', 'abi', f'{name}.json')
+    try:
+        with open(path, 'r') as f:
+            # Load the entire JSON file and return the value of the 'abi' key
+            return json.load(f)['abi']
+    except FileNotFoundError:
+        print(f"ERROR: ABI file not found at {path}")
+        return None
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"ERROR: Could not load or parse ABI file at {path}: {e}")
+        return None
 
 def get_contract(address_env_var, abi_name):
     """Generic function to get a contract instance."""
@@ -10,10 +31,10 @@ def get_contract(address_env_var, abi_name):
     
     abi = load_abi(abi_name)
     if not abi:
-        raise FileNotFoundError(f"ABI file {abi_name}.json not found.")
+        raise FileNotFoundError(f"ABI file {abi_name}.json could not be loaded.")
 
     if not w3:
-        raise ConnectionError("Web3 client is not available. Check initialization.")
+        raise ConnectionError("Web3 client is not available. Check initialization in dependencies.py.")
 
     return w3.eth.contract(address=contract_address, abi=abi)
 
