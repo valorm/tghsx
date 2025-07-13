@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import Dict, Any
 from web3 import Web3
 from postgrest.exceptions import APIError
+from datetime import datetime, timezone
 
 # Corrected Import Paths
 from services.web3_client import get_web3_provider
@@ -58,10 +59,25 @@ async def save_wallet_address(
         raise HTTPException(status_code=400, detail="Could not identify user from token.")
         
     supabase = get_supabase_admin_client()
+    
     try:
-        # Use upsert to either create a new profile or update an existing one.
-        # This is more robust than separate insert/update calls.
-        upsert_data = {'id': user_id, 'wallet_address': request.wallet_address}
+        # --- Enhanced Wallet Connection Logic ---
+
+        # 1. Check if the user's profile already has this wallet address.
+        # This handles the case where a user reconnects the same wallet, avoiding unnecessary DB writes.
+        profile_res = supabase.from_("profiles").select("wallet_address").eq("id", user_id).single().execute()
+        if profile_res.data and profile_res.data.get("wallet_address") == request.wallet_address:
+            return {"message": "Wallet is already linked to this account.", "status": "reconnected"}
+
+        # 2. Use upsert for a robust "update or insert" operation.
+        # This will update the profile if the id exists, or insert a new one if it does not.
+        # The new wallet_last_linked_at timestamp is included for auditing.
+        current_timestamp = datetime.now(timezone.utc).isoformat()
+        upsert_data = {
+            'id': user_id, 
+            'wallet_address': request.wallet_address,
+            'wallet_last_linked_at': current_timestamp
+        }
         response = supabase.from_("profiles").upsert(upsert_data).execute()
 
         if not response.data:
@@ -70,20 +86,20 @@ async def save_wallet_address(
         return {"message": "Wallet address saved successfully."}
     
     except APIError as e:
-        # FIX: Gracefully handle the specific "duplicate key" error from the database.
-        # The database correctly enforces that a wallet can only be linked to one user.
-        # This code now catches that specific error and returns a user-friendly message.
-        if e.code == "23505": # PostgreSQL code for unique_violation
+        # 3. Gracefully handle the specific "duplicate key" error from the database.
+        # This occurs when a user tries to connect a wallet that is already linked to ANOTHER user.
+        if e.code == "23505" and 'profiles_wallet_address_key' in e.message:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This wallet address is already linked to another account."
             )
+        
         # For any other database errors, raise a generic 500 error.
         print(f"ERROR saving wallet address for user {user_id}: {e}")
         raise HTTPException(status_code=500, detail=f"A database error occurred: {e.message}")
         
     except Exception as e:
-        # Catch any other unexpected errors.
+        # 4. Catch any other unexpected errors.
         print(f"UNEXPECTED ERROR saving wallet address for user {user_id}: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
