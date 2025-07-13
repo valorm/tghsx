@@ -1,198 +1,208 @@
-# In /backend/routes/mint.py
+# In /backend/routes/admin.py
 
 import os
-import uuid
-import httpx
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from pydantic import BaseModel, Field
-from decimal import Decimal
-from typing import Dict, Any, List
-
-from services.web3_client import get_web3_provider
-from services.supabase_client import get_supabase_admin_client
-from services.oracle_service import get_eth_ghs_price
-from utils.utils import load_contract_abi, get_current_user, is_admin_user
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from typing import Dict, Any
 from web3 import Web3
 from web3.middleware import geth_poa_middleware
+from decimal import Decimal
+
+from services.web3_client import get_web3_provider
+from utils.utils import is_admin_user, load_contract_abi
 
 router = APIRouter()
 
-# --- Load Contract Details and Admin Key ---
 COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
 MINTER_PRIVATE_KEY = os.getenv("MINTER_PRIVATE_KEY")
 if not COLLATERAL_VAULT_ADDRESS or not MINTER_PRIVATE_KEY:
-    raise RuntimeError("Contract address or minter key not set in environment.")
+    raise RuntimeError("Contract address or owner/minter key not set in environment.")
 
-COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
+try:
+    COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
+except Exception as e:
+    raise RuntimeError(f"Failed to load CollateralVault ABI: {e}")
 
-# --- Telegram Configuration ---
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+class GhsPriceUpdateRequest(BaseModel):
+    new_price: str
 
+class StalenessThresholdUpdateRequest(BaseModel):
+    new_threshold: int
 
-# --- Pydantic Models ---
-class MintRequestPayload(BaseModel):
-    eth_collateral: str
-    tghsx_to_mint: str
-
-class AdminActionRequest(BaseModel):
-    request_id: str
-
-class MintRequestResponse(BaseModel):
-    id: str
-    user_id: str
-    collateral_amount: str
-    mint_amount: str
-    collateral_ratio: float
-    status: str
-
-class MintStatusResponse(BaseModel):
-    status: str
-
-# --- Telegram Alert Helper Function ---
-async def send_telegram_alert(message: str):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("TELEGRAM ALERT SKIPPED: Bot token or chat ID not set.")
-        return
-
-    api_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    
+def send_admin_transaction(function_call):
+    w3 = get_web3_provider()
+    w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+    admin_account = w3.eth.account.from_key(MINTER_PRIVATE_KEY)
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(api_url, json=payload, timeout=10.0)
-            response.raise_for_status()
-            print(">>> Telegram alert sent successfully!")
+        gas_estimate = function_call.estimate_gas({'from': admin_account.address})
+        gas_limit = int(gas_estimate * 1.2)
     except Exception as e:
-        print(f"!!! TELEGRAM ALERT FAILED: {e}")
+        print(f"Gas estimation failed: {e}. Falling back to a default limit.")
+        gas_limit = 200000
+    tx_payload = {'from': admin_account.address, 'nonce': w3.eth.get_transaction_count(admin_account.address), 'gas': gas_limit, 'gasPrice': w3.eth.gas_price}
+    tx = function_call.build_transaction(tx_payload)
+    signed_tx = w3.eth.account.sign_transaction(tx, private_key=MINTER_PRIVATE_KEY)
+    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+    if tx_receipt['status'] == 0:
+        raise Exception("On-chain transaction failed.")
+    return tx_hash.hex()
 
-
-# --- Endpoints ---
-@router.post("/request", status_code=status.HTTP_201_CREATED)
-async def submit_mint_request(
-    payload: MintRequestPayload, 
-    background_tasks: BackgroundTasks,
-    user: dict = Depends(get_current_user)
-):
-    user_id = user.get("sub")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Could not identify user from token.")
-
-    supabase = get_supabase_admin_client()
-    eth_price_data = get_eth_ghs_price()
-    eth_price_ghs = Decimal(str(eth_price_data['eth_ghs_price'])) / Decimal(10**eth_price_data['decimals'])
-    
+@router.get("/status", response_model=Dict[str, Any], dependencies=[Depends(is_admin_user)])
+async def get_contract_status():
     try:
-        collateral_value_ghs = Decimal(payload.eth_collateral) * eth_price_ghs
-        ratio = (collateral_value_ghs / Decimal(payload.tghsx_to_mint)) * 100
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(
+            address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
+            abi=COLLATERAL_VAULT_ABI
+        )
         
-        request_data = {
-            "id": str(uuid.uuid4()),
-            "user_id": user_id,
-            "collateral_amount": payload.eth_collateral,
-            "mint_amount": payload.tghsx_to_mint,
-            "collateral_ratio": float(ratio),
-            "status": "pending"
+        is_paused = vault_contract.functions.paused().call()
+        eth_btc_feed = vault_contract.functions.ethBtcPriceFeed().call()
+        btc_usd_feed = vault_contract.functions.btcUsdPriceFeed().call()
+        ghs_price_raw = vault_contract.functions.ghsUsdPrice().call()
+        ghs_price_formatted = f"{(Decimal(ghs_price_raw) / Decimal('1e8')):.4f}"
+        staleness_threshold = vault_contract.functions.priceStalenesThreshold().call()
+        total_value_locked = vault_contract.functions.totalValueLocked().call()
+        tvl_eth = f"{(Decimal(total_value_locked) / Decimal('1e18')):.4f}"
+        vault_config = vault_contract.functions.vaultConfig().call()
+        
+        return {
+            "isPaused": is_paused,
+            "ethBtcPriceFeed": eth_btc_feed,
+            "btcUsdPriceFeed": btc_usd_feed,
+            "ghsUsdPrice": ghs_price_formatted,
+            "priceStalenesThreshold": staleness_threshold,
+            "totalValueLocked": tvl_eth,
+            "vaultConfig": {
+                "minCollateralRatio": vault_config[0],
+                "liquidationRatio": vault_config[1],
+                "maxCollateralRatio": vault_config[2],
+                "lastConfigUpdate": vault_config[3]
+            }
         }
-        response = supabase.table("mint_requests").insert(request_data).execute()
-        
-        alert_message = (
-            f"🚨 *New Mint Request Submitted* 🚨\n\n"
-            f"*User ID:* `{user_id}`\n"
-            f"*Collateral:* `{payload.eth_collateral}` ETH\n"
-            f"*Mint Amount:* `{payload.tghsx_to_mint}` tGHSX\n"
-            f"*Collateral Ratio:* `{ratio:.2f}%`\n\n"
-            f"Please review in the admin dashboard."
-        )
-        background_tasks.add_task(send_telegram_alert, alert_message)
-        
-        return {"message": "Mint request submitted successfully.", "request_id": response.data[0]["id"]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-
-
-@router.get("/request/{request_id}", response_model=MintStatusResponse)
-async def get_mint_request_status(
-    request_id: str,
-    user: dict = Depends(get_current_user),
-    supabase = Depends(get_supabase_admin_client)
-):
-    user_id = user.get("sub")
-    try:
-        response = (
-            supabase.table("mint_requests")
-            .select("status")
-            .eq("id", request_id)
-            .eq("user_id", user_id)
-            .single()
-            .execute()
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to fetch contract status: {str(e)}"
         )
 
-        if not response.data:
-            raise HTTPException(status_code=404, detail="Mint request not found or you do not have permission to view it.")
-
-        return MintStatusResponse(status=response.data.get("status"))
-    except Exception as e:
-        if "JSON object requested, multiple (or no) rows returned" in str(e):
-             raise HTTPException(status_code=404, detail="Mint request not found.")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch request status: {str(e)}")
-
-
-@router.get("/admin/pending-requests", response_model=List[MintRequestResponse])
-async def get_pending_requests(admin: dict = Depends(is_admin_user)):
-    supabase = get_supabase_admin_client()
+@router.post("/update-ghs-price", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
+async def update_ghs_price(request: GhsPriceUpdateRequest):
     try:
-        response = supabase.table("mint_requests").select("*").eq("status", "pending").execute()
-        return response.data if response.data else []
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch pending requests: {str(e)}")
-
-
-@router.post("/admin/mint")
-async def approve_and_mint(
-    payload: AdminActionRequest, 
-    background_tasks: BackgroundTasks,
-    admin: dict = Depends(is_admin_user)
-):
-    # FIX: The new contract does not support a direct admin minting function.
-    # This endpoint is now deprecated and returns a 'Not Implemented' error.
-    # The admin-gated minting flow would need to be redesigned if this feature is required.
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Admin-gated minting is not supported by the current smart contract version. Users must mint directly."
-    )
-
-
-@router.post("/admin/decline", response_model=Dict[str, Any])
-async def decline_mint_request(
-    payload: AdminActionRequest, 
-    background_tasks: BackgroundTasks,
-    admin: dict = Depends(is_admin_user)
-):
-    supabase = get_supabase_admin_client()
-    admin_id = admin.get("sub")
-    
-    try:
-        req_res = supabase.table("mint_requests").select("user_id").eq("id", payload.request_id).eq("status", "pending").single().execute()
-        if not req_res.data:
-            raise HTTPException(status_code=404, detail="Pending mint request not found or already processed.")
-        
-        user_id = req_res.data['user_id']
-
-        (supabase.table("mint_requests").update({"status": "declined"}).eq("id", payload.request_id).execute())
-        
-        alert_message = (
-            f"❌ *Mint Request Declined* ❌\n\n"
-            f"*Request ID:* `{payload.request_id}`\n"
-            f"*User ID:* `{user_id}`\n"
-            f"*Declined by Admin:* `{admin_id}`"
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(
+            address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
+            abi=COLLATERAL_VAULT_ABI
         )
-        background_tasks.add_task(send_telegram_alert, alert_message)
-        
-        return {"message": "Request declined successfully.", "declined_request_id": payload.request_id}
+        new_price_decimal = Decimal(request.new_price)
+        new_price_wei = int(new_price_decimal * (10**8))
+        if new_price_wei <= 0:
+            raise HTTPException(status_code=400, detail="Price must be a positive number.")
+        function_call = vault_contract.functions.updateGhsPrice(new_price_wei)
+        tx_hash = send_admin_transaction(function_call)
+        return {"message": "GHS price updated successfully.", "transactionHash": tx_hash}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid price format.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to decline request: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to update GHS price: {str(e)}"
+        )
+
+@router.post("/update-staleness-threshold", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
+async def update_staleness_threshold(request: StalenessThresholdUpdateRequest):
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(
+            address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
+            abi=COLLATERAL_VAULT_ABI
+        )
+        new_threshold = request.new_threshold
+        if new_threshold < 300 or new_threshold > 86400:
+            raise HTTPException(
+                status_code=400, 
+                detail="Threshold must be between 300 seconds (5 minutes) and 86400 seconds (24 hours)."
+            )
+        function_call = vault_contract.functions.updateStalenesThreshold(new_threshold)
+        tx_hash = send_admin_transaction(function_call)
+        return {"message": "Price staleness threshold updated successfully.", "transactionHash": tx_hash}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to update staleness threshold: {str(e)}"
+        )
+
+@router.post("/pause", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
+async def pause_contract():
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(
+            address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
+            abi=COLLATERAL_VAULT_ABI
+        )
+        # FIX: Call the correct function name from the Pausable contract ('pause' not 'emergencyPause')
+        function_call = vault_contract.functions.pause()
+        tx_hash = send_admin_transaction(function_call)
+        return {"message": "Protocol paused successfully.", "transactionHash": tx_hash}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to pause protocol: {str(e)}"
+        )
+
+@router.post("/unpause", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
+async def unpause_contract():
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(
+            address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
+            abi=COLLATERAL_VAULT_ABI
+        )
+        # FIX: Call the correct function name from the Pausable contract ('unpause' not 'emergencyUnpause')
+        function_call = vault_contract.functions.unpause()
+        tx_hash = send_admin_transaction(function_call)
+        return {"message": "Protocol resumed successfully.", "transactionHash": tx_hash}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to resume protocol: {str(e)}"
+        )
+
+# --- The rest of the file remains the same ---
+@router.get("/check-admin", response_model=Dict[str, bool], dependencies=[Depends(is_admin_user)])
+async def check_admin_status():
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(
+            address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
+            abi=COLLATERAL_VAULT_ABI
+        )
+        admin_account = w3.eth.account.from_key(MINTER_PRIVATE_KEY)
+        is_admin = vault_contract.functions.isAdmin(admin_account.address).call()
+        return {"isAdmin": is_admin}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to check admin status: {str(e)}"
+        )
+
+@router.get("/price-feeds", response_model=Dict[str, Any])
+async def get_price_feeds():
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(
+            address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
+            abi=COLLATERAL_VAULT_ABI
+        )
+        eth_ghs_price = vault_contract.functions.getEthGhsPrice().call()
+        eth_ghs_formatted = f"{(Decimal(eth_ghs_price) / Decimal('1e8')):.8f}"
+        return {
+            "ethGhsPrice": eth_ghs_formatted,
+            "ethGhsPriceRaw": eth_ghs_price
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to get price feeds: {str(e)}"
+        )

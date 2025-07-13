@@ -90,6 +90,13 @@ async def submit_mint_request(
         collateral_value_ghs = Decimal(payload.eth_collateral) * eth_price_ghs
         ratio = (collateral_value_ghs / Decimal(payload.tghsx_to_mint)) * 100
         
+        # FIX: Add validation to prevent submission of undercollateralized requests
+        if ratio < 150:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Collateral ratio is {ratio:.2f}%, which is below the minimum of 150%. Please add more collateral or mint less tGHSX."
+            )
+
         request_data = {
             "id": str(uuid.uuid4()),
             "user_id": user_id,
@@ -111,6 +118,9 @@ async def submit_mint_request(
         background_tasks.add_task(send_telegram_alert, alert_message)
         
         return {"message": "Mint request submitted successfully.", "request_id": response.data[0]["id"]}
+    except HTTPException as http_exc:
+        # Re-raise HTTPException to ensure FastAPI handles it correctly
+        raise http_exc
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
@@ -158,74 +168,13 @@ async def approve_and_mint(
     background_tasks: BackgroundTasks,
     admin: dict = Depends(is_admin_user)
 ):
-    supabase = get_supabase_admin_client()
-    admin_id = admin.get("sub")
-    
-    try:
-        req_res = supabase.from_("mint_requests").select("*, profiles(wallet_address)").eq("id", payload.request_id).eq("status", "pending").single().execute()
-        if not req_res.data: raise HTTPException(status_code=404, detail="Pending request not found.")
-        
-        pending_request = req_res.data
-        user_profile = pending_request.get("profiles")
-        if not user_profile or not user_profile.get("wallet_address"): raise HTTPException(status_code=404, detail="User wallet address not found.")
-        
-        recipient_address = user_profile["wallet_address"]
-        amount_to_mint = Decimal(pending_request['mint_amount'])
-        amount_wei = int(amount_to_mint * (10**18))
-
-        w3 = get_web3_provider()
-        w3.middleware_onion.inject(geth_poa_middleware, layer=0)
-        
-        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
-        admin_account = w3.eth.account.from_key(MINTER_PRIVATE_KEY)
-        
-        # FIX: Dynamically estimate gas for the minting transaction
-        function_call = vault_contract.functions.adminMintForUser(Web3.to_checksum_address(recipient_address), amount_wei)
-        try:
-            gas_estimate = function_call.estimate_gas({'from': admin_account.address})
-            gas_limit = int(gas_estimate * 1.2)
-        except Exception as e:
-            print(f"Gas estimation failed for mint: {e}. Falling back to default.")
-            gas_limit = 300000 # A safe fallback for this specific function
-
-        tx_payload = {
-            'from': admin_account.address, 
-            'nonce': w3.eth.get_transaction_count(admin_account.address),
-            'gas': gas_limit,
-            'gasPrice': w3.eth.gas_price
-        }
-        
-        tx = function_call.build_transaction(tx_payload)
-        signed_tx = w3.eth.account.sign_transaction(tx, private_key=MINTER_PRIVATE_KEY)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-        
-        if tx_receipt['status'] == 0: raise Exception("On-chain transaction failed.")
-        
-        supabase.from_("mint_requests").update({"status": "approved", "tx_hash": tx_hash.hex()}).eq("id", payload.request_id).execute()
-        
-        alert_message = (
-            f"✅ *Mint Request Approved* ✅\n\n"
-            f"*Request ID:* `{payload.request_id}`\n"
-            f"*User ID:* `{pending_request['user_id']}`\n"
-            f"*Amount:* `{amount_to_mint}` tGHSX\n"
-            f"*Approved by Admin:* `{admin_id}`\n"
-            f"*Tx Hash:* `{tx_hash.hex()}`"
-        )
-        background_tasks.add_task(send_telegram_alert, alert_message)
-
-        return {"message": "Minting successful.", "transaction_hash": tx_hash.hex()}
-        
-    except Exception as e:
-        failure_message = (
-            f"🛑 *Mint Approval Failed* 🛑\n\n"
-            f"*Request ID:* `{payload.request_id}`\n"
-            f"*Reason:* {str(e)}"
-        )
-        background_tasks.add_task(send_telegram_alert, failure_message)
-        
-        supabase.table("mint_requests").update({"status": "failed", "error_message": str(e)}).eq("id", payload.request_id).execute()
-        raise HTTPException(status_code=500, detail=f"An error occurred during mint approval: {str(e)}")
+    # FIX: The new contract does not support a direct admin minting function.
+    # This endpoint is now deprecated and returns a 'Not Implemented' error.
+    # The admin-gated minting flow would need to be redesigned if this feature is required.
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Admin-gated minting is not supported by the current smart contract version. Users must mint directly."
+    )
 
 
 @router.post("/admin/decline", response_model=Dict[str, Any])
