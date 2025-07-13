@@ -1,82 +1,42 @@
-# In /backend/routes/protocol.py
-
+from flask import Blueprint, jsonify, request
 import os
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict, Any
-from web3 import Web3
-from decimal import Decimal
 
-# Corrected Import Paths
-from services.web3_client import get_web3_provider
-from services.supabase_client import get_supabase_admin_client
-from services.oracle_service import get_eth_ghs_price
-from utils.utils import get_current_user, load_contract_abi
+protocol_routes = Blueprint('protocol', __name__)
 
-router = APIRouter()
+# A dictionary to hold contract names and their corresponding environment variable keys
+CONTRACT_ADDRESS_KEYS = {
+    "CollateralVault": "COLLATERAL_VAULT_ADDRESS",
+    "TGHSXToken": "TGHSX_TOKEN_ADDRESS",
+}
 
-# --- Load Contract Details ---
-COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
-COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
-
-@router.get("/health", response_model=Dict[str, Any])
-async def get_protocol_health(
-    # For MVP, we secure it. In production, this might be a public endpoint.
-    user: dict = Depends(get_current_user),
-    supabase = Depends(get_supabase_admin_client)
-):
+@protocol_routes.route('/contract-address', methods=['GET'])
+def get_contract_address():
     """
-    Calculates and returns the latest aggregated health metrics for the protocol on-the-fly.
+    Returns the address of a requested contract.
+    e.g., /api/v1/protocol/contract-address?name=CollateralVault
     """
-    try:
-        # --- Step 1: Fetch On-Chain and Off-Chain Data ---
-        w3 = get_web3_provider()
-        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
+    contract_name = request.args.get('name')
+    if not contract_name:
+        return jsonify({"error": "Contract name parameter is required."}), 400
 
-        # Get Total Value Locked directly from the smart contract
-        total_value_locked_wei = vault_contract.functions.totalValueLocked().call()
-        total_value_locked_eth = Web3.from_wei(total_value_locked_wei, 'ether')
+    env_var_key = CONTRACT_ADDRESS_KEYS.get(contract_name)
+    if not env_var_key:
+        return jsonify({"error": f"Contract '{contract_name}' is not a known contract."}), 404
 
-        # Get all approved mint requests from the database to calculate total debt
-        approved_requests_res = supabase.from_("mint_requests").select("mint_amount, user_id").eq("status", "approved").execute()
+    address = os.getenv(env_var_key)
+    if not address:
+        return jsonify({"error": f"Address for contract '{contract_name}' not configured on the server."}), 500
         
-        total_debt = Decimal(0)
-        active_vaults = set()
+    return jsonify({"name": contract_name, "address": address})
 
-        if approved_requests_res.data:
-            for req in approved_requests_res.data:
-                total_debt += Decimal(req['mint_amount'])
-                active_vaults.add(req['user_id'])
-        
-        number_of_vaults = len(active_vaults)
-
-        # --- Step 2: Calculate Average Collateralization Ratio ---
-        avg_collateral_ratio = "0"
-        if total_debt > 0:
-            try:
-                # Get the current ETH price to value the collateral
-                price_data = get_eth_ghs_price()
-                eth_price_ghs = Decimal(str(price_data['eth_ghs_price'])) / Decimal(10**price_data['decimals'])
-                
-                total_collateral_value_ghs = total_value_locked_eth * eth_price_ghs
-                
-                # Calculate the global collateralization ratio for the protocol
-                ratio = (total_collateral_value_ghs / total_debt) * 100
-                avg_collateral_ratio = f"{ratio:.2f}"
-            except Exception as price_error:
-                print(f"Warning: Could not calculate average ratio due to price error: {price_error}")
-                avg_collateral_ratio = "N/A"
-
-        # --- Step 3: Return the compiled data ---
-        return {
-            "totalValueLocked": str(total_value_locked_eth),
-            "totalDebt": str(total_debt),
-            "numberOfVaults": number_of_vaults,
-            "averageCollateralizationRatio": avg_collateral_ratio
-        }
-
-    except Exception as e:
-        print(f"ERROR fetching protocol health: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve protocol health metrics: {e}"
-        )
+@protocol_routes.route('/info', methods=['GET'])
+def get_protocol_info():
+    """
+    Returns general information about the protocol.
+    """
+    return jsonify({
+        "name": "tGHSX Protocol",
+        "version": "1.0.0",
+        "description": "A decentralized synthetic asset protocol.",
+        "network_id": os.getenv("NETWORK_ID", "N/A"),
+    })

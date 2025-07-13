@@ -1,71 +1,102 @@
-# In /backend/routes/auth.py
-
+from flask import Blueprint, request, jsonify
+from services.supabase_client import supabase_client
+from utils.auth import is_admin
 import os
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from supabase import Client
-from gotrue.errors import AuthApiError
 
-# Corrected Import Paths
-from services.supabase_client import get_supabase_client
-# --- NEW: Import JWT creation utility ---
-from utils.utils import create_access_token
+auth_routes = Blueprint('auth', __name__)
 
-router = APIRouter()
+@auth_routes.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+    wallet_address = data.get('wallet_address')
 
-# --- Get Admin User ID from environment variables ---
-ADMIN_USER_ID = os.getenv("ADMIN_USER_ID")
-if not ADMIN_USER_ID:
-    raise RuntimeError("CRITICAL: ADMIN_USER_ID is not set in the environment.")
+    if not email or not password or not wallet_address:
+        return jsonify({'error': 'Email, password, and wallet_address are required'}), 400
 
-class UserCreate(BaseModel):
-    email: str
-    password: str
-
-class UserLogin(BaseModel):
-    email: str
-    password: str
-
-@router.post("/register", status_code=201)
-async def register_user(request: UserCreate, db: Client = Depends(get_supabase_client)):
-    """Handles new user registration via Supabase Auth."""
     try:
-        response = db.auth.sign_up({"email": request.email, "password": request.password})
-        if response.user:
-             # --- FIX: Return a custom JWT upon successful registration for immediate login ---
-             user_id = response.user.id
-             role = "admin" if user_id == ADMIN_USER_ID else "user"
-             access_token = create_access_token(data={"sub": user_id, "role": role})
-             return {"access_token": access_token, "token_type": "bearer"}
-        
-        # This part should ideally not be reached if sign_up is successful
-        raise HTTPException(status_code=500, detail="Registration failed unexpectedly.")
-    except AuthApiError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Create user in Supabase Auth
+        auth_response = supabase_client.auth.sign_up({
+            "email": email,
+            "password": password
+        })
 
-@router.post("/login")
-async def login_user(request: UserLogin, db: Client = Depends(get_supabase_client)):
-    """
-    Handles user login.
-    On success, it determines the user's role and returns a custom JWT.
-    """
+        user_id = auth_response.user.id
+
+        # Insert user profile into 'profiles' table
+        profile_data = {
+            'user_id': str(user_id), 
+            'email': email, 
+            'wallet_address': wallet_address,
+            'is_admin': False # Default to not admin
+        }
+        supabase_client.table('profiles').insert(profile_data).execute()
+
+        return jsonify({
+            'message': 'User registered successfully. Please check your email to verify.',
+            'user_id': user_id
+        }), 201
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@auth_routes.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({'error': 'Email and password are required'}), 400
+
     try:
-        # 1. Authenticate with Supabase
-        response = db.auth.sign_in_with_password({"email": request.email, "password": request.password})
+        response = supabase_client.auth.sign_in_with_password({
+            "email": email,
+            "password": password
+        })
+        return jsonify({
+            'message': 'Login successful',
+            'access_token': response.session.access_token,
+            'user_id': response.user.id
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 401
+
+@auth_routes.route('/admin-login', methods=['POST'])
+def admin_login():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({'error': 'Email and password are required'}), 400
+
+    try:
+        response = supabase_client.auth.sign_in_with_password({
+            "email": email,
+            "password": password
+        })
         
-        if response.user and response.session:
-            user_id = response.user.id
-            
-            # 2. Determine the user's role
-            # This is the single source of truth for the admin role.
-            role = "admin" if user_id == ADMIN_USER_ID else "user"
-            
-            # 3. Create a new, custom JWT with the role embedded
-            # The frontend will use this token for all subsequent requests.
-            access_token = create_access_token(data={"sub": user_id, "role": role})
-            
-            return {"access_token": access_token, "token_type": "bearer"}
-            
-        raise HTTPException(status_code=401, detail="Login failed: Invalid credentials.")
-    except AuthApiError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        user_id = response.user.id
+        
+        if not is_admin(user_id):
+            return jsonify({'error': 'Invalid credentials or not an admin'}), 403
+
+        return jsonify({
+            'message': 'Admin login successful',
+            'access_token': response.session.access_token,
+            'user_id': user_id
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': 'Invalid credentials or not an admin'}), 401
+
+@auth_routes.route('/logout', methods=['POST'])
+def logout():
+    try:
+        supabase_client.auth.sign_out()
+        return jsonify({'message': 'Successfully logged out'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

@@ -1,135 +1,143 @@
+import { ethers } from "https://cdn.ethers.io/lib/ethers-5.2.esm.min.js";
+
+// This module now manages a single, cached instance of the vault contract.
+let vaultContractInstance = null;
+let vaultContractAddress = null;
+
 /**
- * ==================================================================================
- * Shared Wallet & App Logic (shared-wallet.js) - FINAL VERSION
- *
- * This script manages the global state for the tGHSX application, including
- * wallet connections, contract instances, and shared utility functions.
- * ==================================================================================
+ * Fetches the ABI for a given contract from the frontend's /abi directory.
+ * @param {string} contractName The name of the contract (e.g., "CollateralVault").
+ * @returns {Promise<object>} A promise that resolves to the contract's ABI.
  */
-
-import EthereumProvider from 'https://esm.sh/@walletconnect/ethereum-provider@2.13.0';
-
-// --- Configuration ---
-const NETWORKS = {
-    31337: 'Localhost (Hardhat)',
-    80002: 'Polygon Amoy Testnet',
-    137: 'Polygon Mainnet',
-};
-const REQUIRED_CHAIN_ID = 80002;
-export const BACKEND_URL = 'https://tghsx.onrender.com';
-const COLLATERAL_VAULT_ADDRESS = "0x056A045a98190c2843377DB216CE95479b736743";
-
-const COLLATERAL_VAULT_ABI = [
-    "event CollateralDeposited(address indexed user, uint256 amount, uint256 indexed blockNumber)",
-    "event CollateralWithdrawn(address indexed user, uint256 amount)",
-    "event TGHSXMinted(address indexed user, uint256 amount, uint256 indexed newRatio)",
-    "event TGHSXBurned(address indexed user, uint256 amount, uint256 indexed newRatio)",
-    "event VaultLiquidated(address indexed user, address indexed liquidator, uint256 repaidTGHSX, uint256 liquidatedETH, uint256 bonus)",
-    "event GhsPriceUpdated(uint256 newPrice, address indexed updater)",
-    "event StalenesThresholdUpdated(uint256 newThreshold, address indexed updater)",
-    "function isAdmin(address account) view returns (bool)",
-    "function updateStalenesThreshold(uint256 newThreshold)",
-    "function updateGhsPrice(uint256 _newPrice)",
-    "function getEthGhsPrice() view returns (uint256)",
-    "function deposit() payable",
-    "function withdraw(uint256 amount)",
-    "function mintTGHSX(uint256 amount)",
-    "function burnTGHSX(uint256 amount)",
-    "function depositAndMint(uint256 mintAmount) payable",
-    "function repayAndWithdraw(uint256 burnAmount, uint256 withdrawAmount)",
-    "function liquidateVault(address user, uint256 tghsxToRepay)",
-    "function getUserPosition(address user) view returns (uint256 ethCollateral, uint256 tghsxMinted, uint256 collateralizationRatio, bool isLiquidatable, uint256 accruedFees)",
-    "function tghsxToken() view returns (address)",
-    "function paused() view returns (bool)",
-    "function pause()",
-    "function unpause()"
-];
-
-const TGHSX_ABI = [ "function approve(address,uint256) returns (bool)", "function allowance(address,address) view returns (uint256)" ];
-
-// --- Global State ---
-export const appState = {
-    userAccount: null,
-    provider: null,
-    signer: null,
-    isConnecting: false,
-    isCorrectNetwork: false,
-    networkName: null,
-    collateralVaultContract: null,
-    tghsxTokenContract: null,
-    isProtocolPaused: false,
-    connectionType: null,
-};
-
-let walletConnectProvider = null;
-
-// --- Wallet Connection Logic (Omitted for brevity) ---
-async function initializeWalletConnect() { console.log("Initializing WalletConnect..."); try { const projectId = '4571f8b102cc836bdd761e9798a0e1f4'; walletConnectProvider = await EthereumProvider.init({ projectId, chains: [REQUIRED_CHAIN_ID], showQrModal: true, qrModalOptions: { themeMode: "dark" }, metadata: { name: "tGHSX Protocol", description: "The Synthetic Ghanaian Cedi, backed by Crypto.", url: "https://tghsx.vercel.app", icons: ["https://tghsx.vercel.app/images/icons/icon-192x192.png"] } }); walletConnectProvider.on("disconnect", () => { console.log("[WalletConnect] Event: disconnect received."); resetWalletState(); }); console.log("WalletConnect Initialized Successfully."); } catch (e) { console.error("Fatal Error during WalletConnect initialization:", e); showToast("Could not start WalletConnect.", "error"); } }
-async function handleWalletConnectSession() { console.log("Handling WalletConnect Session..."); if (appState.isConnecting) return; appState.isConnecting = true; updateWalletUI(); try { const accounts = walletConnectProvider.accounts; if (!accounts || accounts.length === 0) { throw new Error('No accounts found after WalletConnect session was established.'); } appState.connectionType = 'walletconnect'; localStorage.setItem('walletConnected', 'walletconnect'); const provider = new ethers.providers.Web3Provider(walletConnectProvider); await setupProviderAndState(provider, accounts[0]); } catch (error) { console.error('Error processing WalletConnect session:', error); showToast(getErrorMessage(error), 'error'); resetWalletState(); } finally { appState.isConnecting = false; updateWalletUI(); } }
-export function connectWallet() { const modal = document.getElementById('connectionModal'); if (modal) modal.classList.add('show'); }
-async function connectWithMetaMask() { if (typeof window.ethereum === 'undefined') { return showToast('MetaMask is not installed.', 'error'); } if (appState.isConnecting) return; appState.isConnecting = true; updateWalletUI(); try { const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }); if (accounts.length === 0) throw new Error('No accounts found in MetaMask.'); appState.connectionType = 'metamask'; localStorage.setItem('walletConnected', 'metamask'); const provider = new ethers.providers.Web3Provider(window.ethereum); await setupProviderAndState(provider, accounts[0]); } catch (error) { console.error('Error connecting with MetaMask:', error); showToast(getErrorMessage(error), 'error'); resetWalletState(); } finally { appState.isConnecting = false; updateWalletUI(); } }
-async function connectWithWalletConnect() { if (appState.isConnecting) return; console.log("Attempting to connect with WalletConnect..."); if (!walletConnectProvider) { await initializeWalletConnect(); } if (walletConnectProvider.session) { await handleWalletConnectSession(); return; } appState.isConnecting = true; updateWalletUI(); try { await walletConnectProvider.connect(); } catch (error) { if (!error.message.includes("Connection request reset")) { showToast(getErrorMessage(error), 'error'); } resetWalletState(); } }
-async function setupProviderAndState(provider, account) { console.log(`Setting up provider for account: ${account}`); appState.provider = provider; appState.signer = provider.getSigner(); appState.userAccount = account; const isNetworkCorrect = await checkNetwork(); if (isNetworkCorrect) { await initializeContracts(); await fetchProtocolStatus(); await saveWalletAddressToBackend(account); document.dispatchEvent(new CustomEvent('networkConnected')); } updateWalletUI(); listenToProviderEvents(); }
-function listenToProviderEvents() { const providerSource = appState.connectionType === 'metamask' ? window.ethereum : walletConnectProvider; if (!providerSource) return; if (typeof providerSource.removeAllListeners === 'function') { providerSource.removeAllListeners('accountsChanged'); providerSource.removeAllListeners('chainChanged'); } providerSource.on('accountsChanged', (accounts) => { if (accounts.length === 0) resetWalletState(); else window.location.reload(); }); providerSource.on('chainChanged', () => window.location.reload()); }
-async function switchChain() { const provider = appState.connectionType === 'metamask' ? window.ethereum : walletConnectProvider; if (!provider) return false; try { await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: `0x${REQUIRED_CHAIN_ID.toString(16)}` }], }); return true; } catch (switchError) { if (switchError.code === 4902) { showToast(`Please add ${NETWORKS[REQUIRED_CHAIN_ID]} to your wallet.`, 'error'); } else { showToast('Failed to switch network. Please do it manually.', 'error'); } return false; } }
-async function checkNetwork() { if (!appState.provider) return false; try { const network = await appState.provider.getNetwork(); appState.networkName = NETWORKS[network.chainId] || `Unsupported (ID: ${network.chainId})`; if (network.chainId === REQUIRED_CHAIN_ID) { appState.isCorrectNetwork = true; return true; } else { appState.isCorrectNetwork = false; showToast(`Wrong network. Please switch to ${NETWORKS[REQUIRED_CHAIN_ID]}.`, 'warning'); return await switchChain(); } } catch (error) { resetWalletState(); return false; } }
-export async function disconnectWallet() { console.log("Disconnecting wallet..."); if (appState.connectionType === 'walletconnect' && walletConnectProvider?.session) { await walletConnectProvider.disconnect(); } resetWalletState(); showToast('Wallet disconnected', 'info'); }
-function resetWalletState() { console.log("Resetting wallet state."); appState.userAccount = null; appState.provider = null; appState.signer = null; appState.isCorrectNetwork = false; appState.networkName = null; appState.collateralVaultContract = null; appState.tghsxTokenContract = null; appState.isProtocolPaused = false; appState.connectionType = null; appState.isConnecting = false; localStorage.removeItem('walletConnected'); updateWalletUI(); document.dispatchEvent(new Event('walletDisconnected')); }
-async function checkForExistingConnection() { const connectionType = localStorage.getItem('walletConnected'); if (!connectionType) return; if (connectionType === 'walletconnect') { if (walletConnectProvider?.session) { await handleWalletConnectSession(); } } else if (connectionType === 'metamask' && window.ethereum) { const accounts = await window.ethereum.request({ method: 'eth_accounts' }); if (accounts.length > 0) { await connectWithMetaMask(); } } }
-async function initializeContracts() { if (!appState.signer) return false; try { appState.collateralVaultContract = new ethers.Contract(COLLATERAL_VAULT_ADDRESS, COLLATERAL_VAULT_ABI, appState.signer); const tghsxTokenAddress = await appState.collateralVaultContract.tghsxToken(); appState.tghsxTokenContract = new ethers.Contract(tghsxTokenAddress, TGHSX_ABI, appState.signer); return true; } catch (error) { showToast('Failed to connect to smart contracts.', 'error'); resetWalletState(); return false; } }
-async function fetchProtocolStatus() { if (!appState.collateralVaultContract) return; try { const isPaused = await appState.collateralVaultContract.paused(); appState.isProtocolPaused = isPaused; document.dispatchEvent(new CustomEvent('protocolStatusUpdated', { detail: { isPaused } })); } catch (error) { console.error("Could not fetch protocol status:", error); } }
-async function saveWalletAddressToBackend(walletAddress) { const token = localStorage.getItem('accessToken'); if (!token) return; try { const response = await fetch(`${BACKEND_URL}/vault/save-wallet-address`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ wallet_address: walletAddress }) }); if (response.status === 409) { const errorData = await response.json(); showToast(errorData.detail || 'This wallet is already linked to another account.', 'error'); disconnectWallet(); return; } if (!response.ok) { const errorData = await response.json().catch(() => ({ detail: 'Failed to save wallet address.' })); throw new Error(errorData.detail); } const result = await response.json(); if (result.status !== 'reconnected') { showToast('Wallet linked to your account successfully!', 'success'); } } catch (error) { console.error('Error saving wallet address:', error); if (response && response.status !== 409) { showToast('Could not link wallet to your account.', 'error'); } } }
-function updateWalletUI() { const walletBtn = document.getElementById('walletBtn'); if (!walletBtn) return; if (appState.isConnecting) { walletBtn.textContent = 'Connecting...'; walletBtn.disabled = true; } else if (appState.userAccount) { walletBtn.textContent = formatAddress(appState.userAccount); walletBtn.classList.add('connected'); walletBtn.onclick = disconnectWallet; walletBtn.disabled = false; } else { walletBtn.textContent = 'Connect Wallet'; walletBtn.classList.remove('connected'); walletBtn.onclick = connectWallet; walletBtn.disabled = false; } }
-export function formatAddress(address) { if (!address || address.length < 10) return ''; return `${address.slice(0, 6)}...${address.slice(-4)}`; }
-export function logoutUser() { disconnectWallet(); localStorage.removeItem('accessToken'); showToast('You have been logged out.', 'info'); setTimeout(() => { window.location.href = './auth.html'; }, 1500); }
-let toastTimeout; export function showToast(message, type = 'success', duration = 5000) { const toast = document.getElementById('toastNotification'); if (!toast) return; if (toastTimeout) clearTimeout(toastTimeout); toast.textContent = message; toast.className = `toast show ${type}`; toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration); }
-
-export function getErrorMessage(error) { if (error.code) { switch (error.code) { case 4001: return 'Transaction cancelled by user.'; case 4902: return 'Network not added to wallet. Please add Polygon Amoy.'; case -32603: return 'Internal JSON-RPC error. The contract may have rejected the transaction.'; case -32002: return 'Request already pending. Please check your wallet.'; case 'UNPREDICTABLE_GAS_LIMIT': return 'Transaction cannot be completed. The collateral ratio is likely out of the allowed range.'; case 'INSUFFICIENT_FUNDS': return 'Your wallet has insufficient MATIC for this transaction, including gas fees.'; case 'CALL_EXCEPTION': return 'Contract call failed. This may be due to stale price oracles. The admin may need to adjust the staleness threshold.'; } } if (error.message) { if (error.message.toLowerCase().includes('user rejected') || error.message.toLowerCase().includes('user denied')) return 'Transaction cancelled by user.'; if (error.message.toLowerCase().includes('insufficient funds')) return 'Insufficient funds for transaction.'; } return 'An unexpected error occurred. Please try again.'; }
-
-// --- NEW: Diagnostic and Admin Functions ---
-
-export async function updateStalenessThreshold(newThreshold) {
-    if (!appState.collateralVaultContract) return showToast('Wallet not connected.', 'error');
-    
+async function getContractAbi(contractName) {
     try {
-        const tx = await appState.collateralVaultContract.updateStalenesThreshold(newThreshold);
-        showToast('Updating staleness threshold...', 'info');
-        await tx.wait();
-        showToast('Staleness threshold updated successfully!', 'success');
+        const response = await fetch(`/abi/${contractName}.json`);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch ABI for ${contractName}. Status: ${response.status}`);
+        }
+        const data = await response.json();
+        if (!data.abi) {
+            throw new Error(`ABI not found in ${contractName}.json`);
+        }
+        return data.abi;
     } catch (error) {
-        showToast(getErrorMessage(error), 'error');
+        console.error(error);
+        throw error;
     }
 }
 
-export async function runNetworkDiagnostics() {
-    if (!appState.provider || !appState.collateralVaultContract) {
-        return showToast('Please connect wallet first.', 'error');
-    }
-    console.log('Running network diagnostics...');
-    
+/**
+ * Fetches a contract's address from the backend.
+ * @param {string} contractName The name of the contract.
+ * @returns {Promise<string>} A promise that resolves to the contract's address.
+ */
+async function getContractAddress(contractName) {
     try {
-        // Test basic provider connection
-        const network = await appState.provider.getNetwork();
-        console.log('✓ Network connected:', network.chainId);
-        
-        // Test contract connectivity
-        const isPaused = await appState.collateralVaultContract.paused();
-        console.log('✓ Contract accessible, paused status:', isPaused);
-        
-        // Test price oracle
-        const price = await appState.collateralVaultContract.getEthGhsPrice();
-        console.log('✓ Price oracle accessible, price:', price.toString());
-        
-        showToast('All systems operational.', 'success');
+        const response = await fetch(`/api/v1/protocol/contract-address?name=${contractName}`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Failed to fetch contract address for ${contractName}`);
+        }
+        const data = await response.json();
+        return data.address;
     } catch (error) {
-        console.error('Diagnostics failed:', error);
-        showToast(`Diagnostics failed: ${getErrorMessage(error)}`, 'error');
+        console.error(error);
+        throw error;
     }
 }
 
+/**
+ * Initializes and returns a cached instance of the CollateralVault contract.
+ * @returns {Promise<ethers.Contract>} A promise that resolves to the ethers contract instance.
+ */
+async function getVaultContract() {
+    if (vaultContractInstance) {
+        return vaultContractInstance;
+    }
 
-// --- Initialization ---
-function handleVisibilityChange() { if (!document.hidden && !appState.userAccount) { console.log('Page became visible, re-checking connection status.'); checkForExistingConnection(); } }
-async function initializeApp() { console.log("Initializing App (DOM Loaded)..."); const token = localStorage.getItem('accessToken'); const onAuthPage = window.location.pathname.endsWith('auth.html'); if (!token && !onAuthPage) { window.location.href = './auth.html'; return; } document.getElementById('walletBtn')?.addEventListener('click', connectWallet); document.getElementById('logoutBtn')?.addEventListener('click', logoutUser); const connectMetaMaskBtn = document.getElementById('connectMetaMaskBtn'); if (connectMetaMaskBtn) connectMetaMaskBtn.addEventListener('click', () => { document.getElementById('connectionModal').classList.remove('show'); connectWithMetaMask(); }); const connectWalletConnectBtn = document.getElementById('connectWalletConnectBtn'); if (connectWalletConnectBtn) connectWalletConnectBtn.addEventListener('click', () => { document.getElementById('connectionModal').classList.remove('show'); connectWithWalletConnect(); }); const cancelConnectionBtn = document.getElementById('cancelConnectionBtn'); if (cancelConnectionBtn) cancelConnectionBtn.addEventListener('click', () => { document.getElementById('connectionModal').classList.remove('show'); }); const menuToggle = document.getElementById('menu-toggle'); const navMenu = document.getElementById('nav-menu'); if (menuToggle && navMenu) { menuToggle.addEventListener('click', () => { navMenu.classList.toggle('active'); const icon = menuToggle.querySelector('i'); icon.classList.toggle('fa-bars', !navMenu.classList.contains('active')); icon.classList.toggle('fa-times', navMenu.classList.contains('active')); }); } document.addEventListener('visibilitychange', handleVisibilityChange, false); window.addEventListener('focus', () => { console.log('[Focus] Checking for wallet session on refocus'); if (!appState.userAccount || !appState.provider) { checkForExistingConnection(); } }); await initializeWalletConnect(); await checkForExistingConnection(); updateWalletUI(); setInterval(fetchProtocolStatus, 60000); }
+    try {
+        if (!window.ethereum) {
+            throw new Error("MetaMask is not installed. Please install it to use this dApp.");
+        }
 
-document.addEventListener('DOMContentLoaded', initializeApp);
+        const address = await getContractAddress('CollateralVault');
+        const abi = await getContractAbi('CollateralVault');
+        
+        vaultContractAddress = address; // Cache the address
+
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        vaultContractInstance = new ethers.Contract(address, abi, signer);
+        
+        return vaultContractInstance;
+    } catch (error) {
+        console.error("Error initializing vault contract:", error);
+        // You can add a UI notification here to inform the user.
+        throw error;
+    }
+}
+
+export async function getCollateralVaultAddress() {
+    if (vaultContractAddress) {
+        return vaultContractAddress;
+    }
+    await getVaultContract(); // This will initialize and cache the address
+    return vaultContractAddress;
+}
+
+export async function getCollateralBalance(userAddress) {
+    const contract = await getVaultContract();
+    const balance = await contract.getCollateralBalance(userAddress);
+    return ethers.utils.formatEther(balance);
+}
+
+export async function getVaultDetails(userAddress) {
+    const contract = await getVaultContract();
+    const details = await contract.vaults(userAddress);
+    return {
+        collateralAmount: ethers.utils.formatEther(details.collateralAmount),
+        tghsxMinted: ethers.utils.formatEther(details.tghsxMinted)
+    };
+}
+
+export async function depositCollateral(amount) {
+    const contract = await getVaultContract();
+    const tx = await contract.depositCollateral({ value: ethers.utils.parseEther(amount) });
+    await tx.wait();
+    return tx;
+}
+
+export async function withdrawCollateral(amount) {
+    const contract = await getVaultContract();
+    const tx = await contract.withdrawCollateral(ethers.utils.parseEther(amount));
+    await tx.wait();
+    return tx;
+}
+
+export async function mintTghsx(amount) {
+    const contract = await getVaultContract();
+    const tx = await contract.mintTghsx(ethers.utils.parseEther(amount));
+    await tx.wait();
+    return tx;
+}
+
+export async function burnTghsx(amount) {
+    const contract = await getVaultContract();
+    const tx = await contract.burnTghsx(ethers.utils.parseEther(amount));
+    await tx.wait();
+    return tx;
+}
+
+export async function liquidate(userAddress) {
+    const contract = await getVaultContract();
+    const tx = await contract.liquidate(userAddress);
+    await tx.wait();
+    return tx;
+}
+
+export async function getHealthFactor(userAddress) {
+    const contract = await getVaultContract();
+    const healthFactor = await contract.getHealthFactor(userAddress);
+    // The health factor is returned as a large number, format it for display
+    return ethers.utils.formatUnits(healthFactor, 18); // Assuming 18 decimals for health factor
+}
