@@ -1,42 +1,27 @@
-from flask import Blueprint, jsonify, request
-import os
+from flask import Blueprint, jsonify
+from dependencies import supabase_client
+from utils.auth import token_required
 
-protocol_routes = Blueprint('protocol', __name__)
+# Using Flask's Blueprint for routing
+transactions_routes = Blueprint('transactions', __name__)
 
-# A dictionary to hold contract names and their corresponding environment variable keys
-CONTRACT_ADDRESS_KEYS = {
-    "CollateralVault": "COLLATERAL_VAULT_ADDRESS",
-    "TGHSXToken": "TGHSX_TOKEN_ADDRESS",
-}
-
-@protocol_routes.route('/contract-address', methods=['GET'])
-def get_contract_address():
+@transactions_routes.route('/history', methods=['GET'])
+@token_required
+def get_transaction_history(user): # The 'user' object is passed from the token_required decorator
     """
-    Returns the address of a requested contract.
-    e.g., /api/v1/protocol/contract-address?name=CollateralVault
+    Endpoint to fetch the transaction history for the authenticated user.
     """
-    contract_name = request.args.get('name')
-    if not contract_name:
-        return jsonify({"error": "Contract name parameter is required."}), 400
+    try:
+        # Fetch transactions from the database for the given user ID
+        response = supabase_client.table('transactions').select('*').eq('user_id', str(user.id)).execute()
 
-    env_var_key = CONTRACT_ADDRESS_KEYS.get(contract_name)
-    if not env_var_key:
-        return jsonify({"error": f"Contract '{contract_name}' is not a known contract."}), 404
+        if response.data:
+            return jsonify(response.data)
+        elif response.error:
+            return jsonify({"error": "Failed to fetch transactions", "details": response.error.message}), 500
+        else:
+            # Return an empty list if there are no transactions
+            return jsonify([])
 
-    address = os.getenv(env_var_key)
-    if not address:
-        return jsonify({"error": f"Address for contract '{contract_name}' not configured on the server."}), 500
-        
-    return jsonify({"name": contract_name, "address": address})
-
-@protocol_routes.route('/info', methods=['GET'])
-def get_protocol_info():
-    """
-    Returns general information about the protocol.
-    """
-    return jsonify({
-        "name": "tGHSX Protocol",
-        "version": "1.0.0",
-        "description": "A decentralized synthetic asset protocol.",
-        "network_id": os.getenv("NETWORK_ID", "N/A"),
-    })
+    except Exception as e:
+        return jsonify({"error": "An internal error occurred", "details": str(e)}), 500
