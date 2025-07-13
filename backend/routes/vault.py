@@ -1,7 +1,9 @@
+# In /backend/routes/vault.py
+# Last Updated: 2025-07-13 @ 3:40 PM GMT (Nsawam, GH)
 
 import os
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Dict, Any, Set
 from web3 import Web3
 from postgrest.exceptions import APIError
@@ -17,15 +19,14 @@ router = APIRouter()
 COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
 COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
 
-# --- NEW: Create a blacklist of system addresses ---
-# These addresses cannot be linked to user accounts.
+# --- Blacklist of system addresses ---
 BLACKLISTED_ADDRESSES: Set[str] = {
     addr.lower() for addr in [
         os.getenv("COLLATERAL_VAULT_ADDRESS"),
         os.getenv("TGHSX_TOKEN_ADDRESS"),
         os.getenv("MINTER_ACCOUNT_ADDRESS"),
-        os.getenv("MOCK_ETH_BTC_PRICE_FEED_ADDRESS"),
-        os.getenv("MOCK_BTC_USD_PRICE_FEED_ADDRESS")
+        os.getenv("CHAINLINK_ETH_USD_PRICE_FEED_ADDRESS"),
+        os.getenv("CHAINLINK_BTC_USD_PRICE_FEED_ADDRESS")
     ] if addr is not None
 }
 
@@ -34,12 +35,29 @@ BLACKLISTED_ADDRESSES: Set[str] = {
 class SaveWalletRequest(BaseModel):
     wallet_address: str
 
+    # FIX: Updated from the deprecated '@validator' to the new '@field_validator'
+    # This aligns the code with Pydantic V2 standards and resolves the warning.
+    @field_validator('wallet_address')
+    @classmethod
+    def wallet_address_must_be_valid_and_checksummed(cls, v: str) -> str:
+        """
+        Validates that the provided wallet address has a valid format,
+        and then converts it to its checksummed version.
+        """
+        if not Web3.is_address(v):
+            raise ValueError('Invalid wallet address format.')
+        
+        return Web3.to_checksum_address(v)
+
 # --- Vault Endpoints ---
 @router.get("/status", response_model=Dict[str, Any])
 async def get_onchain_vault_status(
     user: dict = Depends(get_current_user),
     supabase = Depends(get_supabase_admin_client)
 ):
+    """
+    Fetches the real-time status of a user's vault directly from the smart contract.
+    """
     user_id = user.get("sub")
     try:
         user_res = supabase.from_("profiles").select("wallet_address").eq("id", user_id).single().execute()
@@ -66,6 +84,9 @@ async def save_wallet_address(
     request: SaveWalletRequest,
     user: dict = Depends(get_current_user)
 ):
+    """
+    Links a user's wallet address to their profile in the database.
+    """
     user_id = user.get("sub")
     if not user_id:
         raise HTTPException(status_code=400, detail="Could not identify user from token.")
@@ -73,22 +94,19 @@ async def save_wallet_address(
     supabase = get_supabase_admin_client()
     
     try:
-        # --- Enhanced Wallet Connection Logic ---
-
-        # 1. NEW: Check if the address is a blacklisted system address.
-        # This is a critical security check to prevent system wallets from being linked.
+        # Step 1: Check against the system address blacklist.
         if request.wallet_address.lower() in BLACKLISTED_ADDRESSES:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="This is a system address and cannot be linked to an account."
             )
 
-        # 2. Check if the user's profile already has this wallet address.
+        # Step 2: Check if the user is just reconnecting the same wallet.
         profile_res = supabase.from_("profiles").select("wallet_address").eq("id", user_id).single().execute()
         if profile_res.data and profile_res.data.get("wallet_address") == request.wallet_address:
             return {"message": "Wallet is already linked to this account.", "status": "reconnected"}
 
-        # 3. Use upsert for a robust "update or insert" operation.
+        # Step 3: Prepare data and perform the upsert operation.
         current_timestamp = datetime.now(timezone.utc).isoformat()
         upsert_data = {
             'id': user_id, 
@@ -103,7 +121,7 @@ async def save_wallet_address(
         return {"message": "Wallet address saved successfully."}
     
     except APIError as e:
-        # 4. Gracefully handle the specific "duplicate key" error from the database.
+        # Step 4: Handle specific database errors.
         if e.code == "23505" and 'profiles_wallet_address_key' in e.message:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -114,7 +132,6 @@ async def save_wallet_address(
         raise HTTPException(status_code=500, detail=f"A database error occurred: {e.message}")
         
     except Exception as e:
-        # 5. Catch any other unexpected errors.
+        # Step 5: Catch any other unexpected errors.
         print(f"UNEXPECTED ERROR saving wallet address for user {user_id}: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
-
