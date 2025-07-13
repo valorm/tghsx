@@ -19,9 +19,40 @@ const NETWORKS = {
 const REQUIRED_CHAIN_ID = 80002;
 export const BACKEND_URL = 'https://tghsx.onrender.com';
 const COLLATERAL_VAULT_ADDRESS = "0x7E72df58bD3113bD4437bc96b54Cddbe6c369399";
+
+// FIX: Updated ABI to include all necessary functions and events
+// This ABI includes all functions and events required for the tGHSX protocol.
+// Ensure this matches the deployed contract on the Polygon Amoy Testnet.
 const COLLATERAL_VAULT_ABI = [
-    "event CollateralDeposited(address indexed,uint256,uint256)", "event TGHSXMinted(address indexed,uint256,uint256)", "event VaultLiquidated(address indexed,address indexed,uint256,uint256,uint256)", "event GhsPriceUpdated(uint256,address indexed)", "event StalenesThresholdUpdated(uint256,address indexed)", "function isAdmin(address) view returns (bool)", "function updateStalenesThreshold(uint256)", "function updateGhsPrice(uint256)", "function getEthGhsPrice() view returns (uint256)", "function deposit() payable", "function withdraw(uint256)", "function mintTGHSX(uint256)", "function burnTGHSX(uint256)", "function depositAndMint(uint256) payable", "function repayAndWithdraw(uint256,uint256)", "function liquidateVault(address,uint256)", "function getUserPosition(address) view returns (uint256,uint256,uint256)", "function tghsxToken() view returns (address)", "function paused() view returns (bool)"
+    "event CollateralDeposited(address indexed user, uint256 amount, uint256 indexed blockNumber)",
+    "event CollateralWithdrawn(address indexed user, uint256 amount)",
+    "event TGHSXMinted(address indexed user, uint256 amount, uint256 indexed newRatio)",
+    "event TGHSXBurned(address indexed user, uint256 amount, uint256 indexed newRatio)",
+    "event VaultLiquidated(address indexed user, address indexed liquidator, uint256 repaidTGHSX, uint256 liquidatedETH, uint256 bonus)",
+    "event GhsPriceUpdated(uint256 newPrice, address indexed updater)",
+    "event StalenesThresholdUpdated(uint256 newThreshold, address indexed updater)",
+    "function isAdmin(address account) view returns (bool)",
+    "function updateStalenesThreshold(uint256 newThreshold)",
+    "function updateGhsPrice(uint256 _newPrice)",
+    "function getEthGhsPrice() view returns (uint256)",
+    "function deposit() payable",
+    "function withdraw(uint256 amount)",
+    "function mintTGHSX(uint256 amount)",
+    "function burnTGHSX(uint256 amount)",
+    "function liquidateVault(address user, uint256 tghsxToRepay)",
+    "function getUserPosition(address user) view returns (uint256 ethCollateral, uint256 tghsxMinted, uint256 collateralizationRatio, bool isLiquidatable, uint256 accruedFees)",
+    "function tghsxToken() view returns (address)",
+    "function ethBtcPriceFeed() view returns (address)",
+    "function btcUsdPriceFeed() view returns (address)",
+    "function ghsUsdPrice() view returns (uint256)",
+    "function priceStalenesThreshold() view returns (uint256)",
+    "function vaultConfig() view returns (uint64 minCollateralRatio, uint64 liquidationRatio, uint64 maxCollateralRatio, uint64 lastConfigUpdate)",
+    "function totalValueLocked() view returns (uint256)",
+    "function paused() view returns (bool)",
+    "function pause()",
+    "function unpause()"
 ];
+
 const TGHSX_ABI = [ "function approve(address,uint256) returns (bool)", "function allowance(address,address) view returns (uint256)" ];
 
 // --- Global State ---

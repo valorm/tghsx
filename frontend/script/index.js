@@ -218,10 +218,7 @@ async function loadUserVaultData() {
 
     } catch (error) {
         console.error('Error loading vault data:', error);
-        // FIX: Add user-facing error handling for failed on-chain calls.
-        // This gives the user immediate feedback that something is wrong with the protocol data fetching.
         showToast('Could not load your vault data. The protocol might be experiencing issues (e.g., stale price oracles).', 'error');
-        // FIX: Reset the UI to an error state so the user isn't looking at stale or incorrect data.
         elements.vaultCollateral.textContent = 'Error';
         elements.vaultDebt.textContent = 'Error';
         elements.vaultRatio.textContent = 'Error';
@@ -515,44 +512,51 @@ function proceedWithTransaction() {
     if (!localState.currentTransaction) return;
     const { type, details } = localState.currentTransaction; 
     closeConfirmation(); 
-    if (type === 'Mint') depositAndMint(details); 
-    else if (type === 'Repay') repayAndWithdraw(details); 
+    // FIX: Call the new refactored functions
+    if (type === 'Mint') handleMintTransaction(details); 
+    else if (type === 'Repay') handleRepayWithdrawTransaction(details); 
 }
 
-async function depositAndMint(details) {
+// FIX: New function to handle the multi-step deposit and mint process
+async function handleMintTransaction(details) {
     const { collateral, mint } = details;
     if (parseFloat(collateral) < CONFIG.LIMITS.MIN_COLLATERAL_AMOUNT || parseFloat(mint) < CONFIG.LIMITS.MIN_MINT_AMOUNT) {
         return showToast('Collateral or mint amount is too low.', 'error');
     }
-    
+
     elements.mintButton.classList.add('loading');
     elements.mintButtonText.textContent = '';
 
     try {
+        // Step 1: Deposit Collateral
+        showToast('Step 1/2: Depositing collateral...', 'info');
+        const depositTx = await appState.collateralVaultContract.deposit({ value: ethers.utils.parseEther(collateral) });
+        await depositTx.wait();
+        showToast('Step 1/2: Collateral deposited successfully!', 'success');
+        await refreshAllData(); // Refresh data to reflect new collateral balance
+
+        // Step 2: Mint Tokens
+        showToast('Step 2/2: Minting tGHSX tokens...', 'info');
         const mintAmountWei = ethers.utils.parseEther(mint);
-        const tx = await appState.collateralVaultContract.depositAndMint(mintAmountWei, { value: ethers.utils.parseEther(collateral) });
-        showToast('Waiting for blockchain confirmation...', 'info');
-        const receipt = await tx.wait();
-        
-        if (receipt.status === 1) {
-            showToast('Deposit and Mint successful!', 'success');
-            elements.collateralInput.value = '';
-            elements.mintInput.value = '';
-            await refreshAllData();
-        } else {
-            throw new Error('Transaction failed on-chain.');
-        }
+        const mintTx = await appState.collateralVaultContract.mintTGHSX(mintAmountWei);
+        await mintTx.wait();
+
+        showToast('Deposit and Mint successful!', 'success');
+        elements.collateralInput.value = '';
+        elements.mintInput.value = '';
+        await refreshAllData();
 
     } catch (error) {
-        console.error('Error in depositAndMint:', error);
-        showToast(getErrorMessage(error) || error.message, 'error');
+        console.error('Error in minting process:', error);
+        showToast(getErrorMessage(error) || 'Minting process failed.', 'error');
     } finally {
         elements.mintButton.classList.remove('loading');
         updateMintButtonState();
     }
 }
 
-async function repayAndWithdraw(details) {
+// FIX: New function to handle the multi-step repay and withdraw process
+async function handleRepayWithdrawTransaction(details) {
     const { repay, withdraw } = details;
     if (parseFloat(repay || '0') <= 0 && parseFloat(withdraw || '0') <= 0) {
         return showToast('Please enter an amount to repay or withdraw.', 'error');
@@ -562,11 +566,12 @@ async function repayAndWithdraw(details) {
     elements.repayButton.innerHTML = '';
 
     try {
-        const repayWei = ethers.utils.parseEther(repay || '0');
-        const withdrawWei = ethers.utils.parseEther(withdraw || '0');
-
+        // Step 1: Burn Debt (if any)
         if (parseFloat(repay || '0') > 0) {
-            showToast('Checking token allowance...', 'info');
+            showToast('Step 1/2: Approving and burning debt...', 'info');
+            const repayWei = ethers.utils.parseEther(repay);
+            
+            // Check allowance
             const allowance = await appState.tghsxTokenContract.allowance(appState.userAccount, appState.collateralVaultContract.address);
             if (allowance.lt(repayWei)) {
                 showToast('Please approve the vault to use your tGHSX.', 'info');
@@ -574,28 +579,36 @@ async function repayAndWithdraw(details) {
                 await approveTx.wait();
                 showToast('Approval successful!', 'success');
             }
+
+            const burnTx = await appState.collateralVaultContract.burnTGHSX(repayWei);
+            await burnTx.wait();
+            showToast('Debt burned successfully!', 'success');
+            await refreshAllData();
         }
 
-        const tx = await appState.collateralVaultContract.repayAndWithdraw(repayWei, withdrawWei);
-        showToast('Waiting for blockchain confirmation...', 'info');
-        const receipt = await tx.wait();
-        
-        if (receipt.status === 1) {
-            showToast('Transaction successful!', 'success');
-            elements.repayInput.value = '';
-            elements.withdrawInput.value = '';
-            await refreshAllData();
-        } else {
-            throw new Error('Transaction failed on-chain.');
+        // Step 2: Withdraw Collateral (if any)
+        if (parseFloat(withdraw || '0') > 0) {
+            showToast('Step 2/2: Withdrawing collateral...', 'info');
+            const withdrawWei = ethers.utils.parseEther(withdraw);
+            const withdrawTx = await appState.collateralVaultContract.withdraw(withdrawWei);
+            await withdrawTx.wait();
+            showToast('Collateral withdrawn successfully!', 'success');
         }
+
+        showToast('Transaction successful!', 'success');
+        elements.repayInput.value = '';
+        elements.withdrawInput.value = '';
+        await refreshAllData();
+
     } catch (error) {
-        console.error('Error in repayAndWithdraw:', error);
+        console.error('Error in repay/withdraw process:', error);
         showToast(getErrorMessage(error), 'error');
     } finally {
         elements.repayButton.classList.remove('loading');
         elements.repayButton.innerHTML = `<i class="fas fa-exchange-alt"></i> Repay & Withdraw`;
     }
 }
+
 
 function togglePresetButtons(enabled) {
     const buttons = elements.presetButtons.querySelectorAll('.preset-btn');
