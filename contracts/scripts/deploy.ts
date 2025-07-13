@@ -3,17 +3,17 @@ import "dotenv/config";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("🚀 Deploying with Synthetic Price Feed Logic...");
+  console.log("🚀 Deploying with Updated Synthetic Price Feed Logic...");
   console.log("Deploying contracts with the account:", deployer.address);
 
-  // --- Deploy Mock Price Feeds to SIMULATE synthetic price calculation ---
+  // --- Deploy Mock Price Feeds with updated market data ---
   const MockAggregatorFactory = await ethers.getContractFactory("MockV3Aggregator");
   const MOCK_DECIMALS = 8;
 
   // 1. Deploy Mock ETH/BTC Price Feed
-  // Let's assume 1 ETH = 0.05 BTC
-  const ethBtcPrice = ethers.utils.parseUnits("0.05", MOCK_DECIMALS);
-  console.log("Deploying MockV3Aggregator for ETH/BTC...");
+  // 1 ETH = 0.025 BTC
+  const ethBtcPrice = ethers.utils.parseUnits("0.025", MOCK_DECIMALS);
+  console.log("Deploying MockV3Aggregator for ETH/BTC with updated price...");
   const mockEthBtcPriceFeed = await MockAggregatorFactory.deploy(
     ethBtcPrice,
     MOCK_DECIMALS,
@@ -24,9 +24,9 @@ async function main() {
   console.log(`-> Mock ETH/BTC Price Feed deployed to: ${ETH_BTC_PRICE_FEED}`);
 
   // 2. Deploy Mock BTC/USD Price Feed
-  // Let's assume 1 BTC = $68,000
-  const btcUsdPrice = ethers.utils.parseUnits("68000", MOCK_DECIMALS);
-  console.log("Deploying MockV3Aggregator for BTC/USD...");
+  //1 BTC = $117,669.00
+  const btcUsdPrice = ethers.utils.parseUnits("117669", MOCK_DECIMALS);
+  console.log("Deploying MockV3Aggregator for BTC/USD with updated price...");
   const mockBtcUsdPriceFeed = await MockAggregatorFactory.deploy(
     btcUsdPrice,
     MOCK_DECIMALS,
@@ -36,9 +36,10 @@ async function main() {
   const BTC_USD_PRICE_FEED = mockBtcUsdPriceFeed.address;
   console.log(`-> Mock BTC/USD Price Feed deployed to: ${BTC_USD_PRICE_FEED}`);
 
-  // --- Define an initial price for GHS/USD ---
-  const initialGhsPrice = ethers.utils.parseUnits("10.39", MOCK_DECIMALS);
-  console.log(`Setting initial GHS/USD price to 10.39`);
+  // --- Define an updated initial price for GHS/USD ---
+  //1 GHS = 0.096 USD => 1 USD = 1 / 0.096 = 10.4166... GHS
+  const initialGhsPrice = ethers.utils.parseUnits("10.4167", MOCK_DECIMALS);
+  console.log(`Setting initial GHS/USD price to 10.4167`);
 
   // --- Deploy TGHSXToken ---
   const TGHSXTokenFactory = await ethers.getContractFactory("TGHSXToken");
@@ -49,7 +50,6 @@ async function main() {
   console.log(`-> TGHSXToken deployed to: ${tghsxTokenAddress}`);
 
   // --- Deploy CollateralVault ---
-  // We pass the addresses of our two new mock feeds.
   const CollateralVaultFactory = await ethers.getContractFactory("CollateralVault");
   console.log("Deploying CollateralVault...");
   const collateralVault = await CollateralVaultFactory.deploy(
