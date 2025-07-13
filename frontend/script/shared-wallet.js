@@ -18,7 +18,7 @@ const NETWORKS = {
 };
 const REQUIRED_CHAIN_ID = 80002;
 export const BACKEND_URL = 'https://tghsx.onrender.com';
-const COLLATERAL_VAULT_ADDRESS = "0xA54664Aa9826aE086Eee66a82080aaB937343AB8";
+const COLLATERAL_VAULT_ADDRESS = "0xf8019B47247Ff8C3FF008C4C6d8651F9Ab464b76";
 const COLLATERAL_VAULT_ABI = [
     "event CollateralDeposited(address indexed user, uint256 amount, uint256 indexed blockNumber)",
     "event CollateralWithdrawn(address indexed user, uint256 amount)",
