@@ -5,15 +5,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const userLoginToggle = document.getElementById('userLoginToggle');
     const notification = document.getElementById('notification');
 
+    // CORRECTED: The API base URL is now defined correctly.
     const API_BASE_URL = 'https://tghsx.onrender.com';
 
     const showNotification = (message, isError = false) => {
-        notification.textContent = message;
-        notification.style.color = isError ? '#f44336' : '#4CAF50';
-        notification.style.display = 'block';
-        setTimeout(() => {
-            notification.style.display = 'none';
-        }, 5000);
+        if (notification) {
+            notification.textContent = message;
+            notification.style.color = isError ? '#f44336' : '#4CAF50';
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 5000);
+        }
     };
 
     if (loginForm) {
@@ -23,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const password = loginForm.password.value;
             const isAdminLogin = document.getElementById('auth-container').classList.contains('admin-login-active');
             
-            // CORRECTED: The API endpoint now includes the /api/v1 prefix.
+            // CORRECTED: The API endpoint now includes the full /api/v1/ prefix.
             const endpoint = isAdminLogin ? '/api/v1/auth/admin-login' : '/api/v1/auth/login';
 
             try {
@@ -40,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 showNotification('Login successful!', false);
+                
                 // Store the correct token based on login type
                 if (isAdminLogin) {
                     localStorage.setItem('adminAccessToken', data.access_token);
@@ -63,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const wallet_address = registerForm.wallet_address.value;
 
             try {
-                // CORRECTED: The API endpoint now includes the /api/v1 prefix.
+                // CORRECTED: The API endpoint now includes the full /api/v1/ prefix.
                 const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -86,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Toggle between user and admin login forms
     if (adminLoginToggle) {
         adminLoginToggle.addEventListener('click', () => {
             document.getElementById('auth-container').classList.add('admin-login-active');
