@@ -18,7 +18,7 @@ const NETWORKS = {
 };
 const REQUIRED_CHAIN_ID = 80002;
 export const BACKEND_URL = 'https://tghsx.onrender.com';
-const COLLATERAL_VAULT_ADDRESS = "0x7E72df58bD3113bD4437bc96b54Cddbe6c369399";
+const COLLATERAL_VAULT_ADDRESS = "0xA54664Aa9826aE086Eee66a82080aaB937343AB8";
 
 // FIX: Updated ABI to include all necessary functions and events
 // This ABI includes all functions and events required for the tGHSX protocol.
