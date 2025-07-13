@@ -1,60 +1,35 @@
-# In /backend/routes/transactions.py
+from flask import Blueprint, jsonify
+from dependencies import supabase_client
+from utils.auth import token_required
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List, Dict, Any
-import json
+# Using Flask's Blueprint for routing, converted from FastAPI
+transactions_routes = Blueprint('transactions', __name__)
 
-# Corrected Import Paths
-from services.supabase_client import get_supabase_admin_client
-from utils.utils import get_current_user
-
-router = APIRouter()
-
-@router.get("/", response_model=Dict[str, Any])
-async def get_transaction_history(
-    user: dict = Depends(get_current_user),
-    supabase = Depends(get_supabase_admin_client),
-    page: int = 1,
-    limit: int = 10,
-    type: str = "all" # Add type filter parameter
-):
+@transactions_routes.route('/history', methods=['GET'])
+@token_required
+def get_transaction_history(user): # The 'user' object is passed from the @token_required decorator
     """
-    Fetches a paginated transaction history for the authenticated user.
+    Endpoint to fetch the transaction history for the authenticated user.
     """
-    # FIX: The user's ID is in the 'sub' (subject) claim of the JWT payload.
-    user_id = user.get("sub")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Could not identify user from token.")
+    if not supabase_client:
+        return jsonify({"error": "Database connection not available"}), 503
 
     try:
-        # Calculate the start and end index for the requested page
-        start_index = (page - 1) * limit
-        end_index = start_index + limit - 1
+        # Fetch transactions from the database for the current user's ID
+        user_id = user.id
+        response = supabase_client.table('transactions').select('*').eq('user_id', str(user_id)).execute()
 
-        # Build the query
-        query = (
-            supabase.from_("transactions")
-            .select("*", count="exact") # Request the total count of matching rows
-            .eq("user_id", user_id)
-            .order("block_timestamp", desc=True) # Order by most recent
-            .range(start_index, end_index) # Apply the pagination range
-        )
-
-        # Apply the type filter if it's not 'all'
-        if type != "all":
-            query = query.eq("event_name", type)
-
-        # Execute the query
-        response = query.execute()
-        
-        # The Supabase client returns the total count in the 'count' attribute
-        total_records = response.count if response.count is not None else 0
-        
-        return {"transactions": response.data, "total": total_records}
+        if response.data:
+            return jsonify(response.data)
+        elif response.error:
+            # If Supabase returns an error, log it and inform the client
+            print(f"ERROR: Supabase error fetching transactions: {response.error.message}")
+            return jsonify({"error": "Failed to fetch transactions", "details": response.error.message}), 500
+        else:
+            # Return an empty list if there are no transactions for the user
+            return jsonify([])
 
     except Exception as e:
-        print(f"ERROR fetching transaction history for user {user_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve transaction history: {e}"
-        )
+        # Catch any other unexpected errors
+        print(f"ERROR: Internal error fetching transaction history: {e}")
+        return jsonify({"error": "An internal server error occurred", "details": str(e)}), 500
