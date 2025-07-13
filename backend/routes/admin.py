@@ -141,8 +141,8 @@ async def pause_contract():
             address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
             abi=COLLATERAL_VAULT_ABI
         )
-        # --- FIX: Call the correct function name from the contract ---
-        function_call = vault_contract.functions.emergencyPause()
+        # FIX: Call the correct function name from the Pausable contract ('pause' not 'emergencyPause')
+        function_call = vault_contract.functions.pause()
         tx_hash = send_admin_transaction(function_call)
         return {"message": "Protocol paused successfully.", "transactionHash": tx_hash}
     except Exception as e:
@@ -159,8 +159,8 @@ async def unpause_contract():
             address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), 
             abi=COLLATERAL_VAULT_ABI
         )
-        # --- FIX: Call the correct function name from the contract ---
-        function_call = vault_contract.functions.emergencyUnpause()
+        # FIX: Call the correct function name from the Pausable contract ('unpause' not 'emergencyUnpause')
+        function_call = vault_contract.functions.unpause()
         tx_hash = send_admin_transaction(function_call)
         return {"message": "Protocol resumed successfully.", "transactionHash": tx_hash}
     except Exception as e:
