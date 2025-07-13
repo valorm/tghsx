@@ -1,5 +1,3 @@
-# In /backend/routes/vault.py
-# Last Updated: 2025-07-13 @ 3:40 PM GMT (Nsawam, GH)
 
 import os
 from fastapi import APIRouter, Depends, HTTPException, status
