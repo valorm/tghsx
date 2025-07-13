@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import Dict, Any
 from web3 import Web3
+from postgrest.exceptions import APIError
 
 # Corrected Import Paths
 from services.web3_client import get_web3_provider
@@ -58,19 +59,31 @@ async def save_wallet_address(
         
     supabase = get_supabase_admin_client()
     try:
-        # FIX: Use upsert for a more robust "update or insert" operation.
-        # This is the idiomatic way to handle this in Supabase and avoids race conditions
-        # or complex logic. It will update the profile if the id exists, or insert a new
-        # one if it does not.
+        # Use upsert to either create a new profile or update an existing one.
+        # This is more robust than separate insert/update calls.
         upsert_data = {'id': user_id, 'wallet_address': request.wallet_address}
         response = supabase.from_("profiles").upsert(upsert_data).execute()
 
-        # Upsert returns data on success, so we check for it.
         if not response.data:
              raise HTTPException(status_code=500, detail="Failed to save or update wallet address.")
 
         return {"message": "Wallet address saved successfully."}
-    except Exception as e:
-        # Catch potential database errors more gracefully
+    
+    except APIError as e:
+        # FIX: Gracefully handle the specific "duplicate key" error from the database.
+        # The database correctly enforces that a wallet can only be linked to one user.
+        # This code now catches that specific error and returns a user-friendly message.
+        if e.code == "23505": # PostgreSQL code for unique_violation
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This wallet address is already linked to another account."
+            )
+        # For any other database errors, raise a generic 500 error.
         print(f"ERROR saving wallet address for user {user_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"An error occurred while saving the wallet address: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"A database error occurred: {e.message}")
+        
+    except Exception as e:
+        # Catch any other unexpected errors.
+        print(f"UNEXPECTED ERROR saving wallet address for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
