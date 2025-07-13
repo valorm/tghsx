@@ -19,10 +19,10 @@ from routes.liquidations import liquidations_routes
 # Initialize the Flask application
 app = Flask(__name__)
 
-# Setup Cross-Origin Resource Sharing (CORS)
-# This allows your frontend to make requests to your backend.
-# In production, you should restrict the origins to your actual frontend URL.
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# Setup Cross-Origin Resource Sharing (CORS) for the entire app.
+# This is a more permissive setting that will allow your frontend
+# to communicate with all backend endpoints.
+CORS(app)
 
 # Register all the blueprints with the Flask app, defining their URL prefixes
 app.register_blueprint(auth_routes, url_prefix='/api/v1/auth')
@@ -42,8 +42,6 @@ def read_root():
     return jsonify({"message": "Welcome to the tGHSX Protocol API (Flask Version)"})
 
 # This block is for running the app locally for development.
-# It will not be used in production when running with Gunicorn.
 if __name__ == "__main__":
-    # Use the PORT environment variable if available, otherwise default to 8000
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port)
