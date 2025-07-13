@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from services.web3_service import w3
 from services.contract_service import get_collateral_vault_contract, get_tghsx_token_contract
 from services.oracle_service import get_price_from_oracle, update_price_in_oracle
-from services.supabase_client import supabase_client
+from services.supabase_client import get_supabase_admin_client
 from utils.auth import admin_required
 
 admin_routes = Blueprint('admin', __name__)
@@ -28,7 +28,8 @@ def get_protocol_stats(user_id):
 @admin_required
 def get_user_balances(user_id):
     try:
-        users = supabase_client.table('profiles').select('wallet_address').execute()
+        supabase_admin = get_supabase_admin_client()
+        users = supabase_admin.table('profiles').select('wallet_address').execute()
         balances = []
         collateral_vault = get_collateral_vault_contract()
         tghsx_token = get_tghsx_token_contract()
@@ -106,7 +107,8 @@ def grant_admin_role(user_id):
         return jsonify({'error': 'Target user_id is required'}), 400
 
     try:
-        updated_user = supabase_client.table('profiles').update({'is_admin': True}).eq('user_id', target_user_id).execute()
+        supabase_admin = get_supabase_admin_client()
+        updated_user = supabase_admin.table('profiles').update({'is_admin': True}).eq('user_id', target_user_id).execute()
         
         if not updated_user.data:
             return jsonify({'error': 'User not found or could not be updated.'}), 404
