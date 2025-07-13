@@ -82,28 +82,53 @@ async function saveWalletAddressToBackend(walletAddress) { const token = localSt
 function updateWalletUI() { const walletBtn = document.getElementById('walletBtn'); if (!walletBtn) return; if (appState.isConnecting) { walletBtn.textContent = 'Connecting...'; walletBtn.disabled = true; } else if (appState.userAccount) { walletBtn.textContent = formatAddress(appState.userAccount); walletBtn.classList.add('connected'); walletBtn.onclick = disconnectWallet; walletBtn.disabled = false; } else { walletBtn.textContent = 'Connect Wallet'; walletBtn.classList.remove('connected'); walletBtn.onclick = connectWallet; walletBtn.disabled = false; } }
 export function formatAddress(address) { if (!address || address.length < 10) return ''; return `${address.slice(0, 6)}...${address.slice(-4)}`; }
 export function logoutUser() { disconnectWallet(); localStorage.removeItem('accessToken'); showToast('You have been logged out.', 'info'); setTimeout(() => { window.location.href = './auth.html'; }, 1500); }
-let toastTimeout; export function showToast(message, type = 'success') { const toast = document.getElementById('toastNotification'); if (!toast) return; if (toastTimeout) clearTimeout(toastTimeout); toast.textContent = message; toast.className = `toast show ${type}`; toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, 5000); }
+let toastTimeout; export function showToast(message, type = 'success', duration = 5000) { const toast = document.getElementById('toastNotification'); if (!toast) return; if (toastTimeout) clearTimeout(toastTimeout); toast.textContent = message; toast.className = `toast show ${type}`; toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration); }
 
-export function getErrorMessage(error) {
-    if (error.code) {
-        switch (error.code) {
-            case 4001: return 'Transaction cancelled by user.';
-            case 4902: return 'Network not added to wallet. Please add Polygon Amoy.';
-            case -32603: return 'Internal JSON-RPC error. The contract may have rejected the transaction.';
-            case -32002: return 'Request already pending. Please check your wallet.';
-            case 'UNPREDICTABLE_GAS_LIMIT': return 'Transaction cannot be completed. The collateral ratio is likely out of the allowed range.';
-            case 'INSUFFICIENT_FUNDS': return 'Your wallet has insufficient MATIC for this transaction, including gas fees.';
-            // FIX: Add a specific case for CALL_EXCEPTION to provide a more helpful message.
-            case 'CALL_EXCEPTION': return 'Contract call failed. This may be due to stale price oracles. The admin may need to adjust the staleness threshold.';
-        }
+export function getErrorMessage(error) { if (error.code) { switch (error.code) { case 4001: return 'Transaction cancelled by user.'; case 4902: return 'Network not added to wallet. Please add Polygon Amoy.'; case -32603: return 'Internal JSON-RPC error. The contract may have rejected the transaction.'; case -32002: return 'Request already pending. Please check your wallet.'; case 'UNPREDICTABLE_GAS_LIMIT': return 'Transaction cannot be completed. The collateral ratio is likely out of the allowed range.'; case 'INSUFFICIENT_FUNDS': return 'Your wallet has insufficient MATIC for this transaction, including gas fees.'; case 'CALL_EXCEPTION': return 'Contract call failed. This may be due to stale price oracles. The admin may need to adjust the staleness threshold.'; } } if (error.message) { if (error.message.toLowerCase().includes('user rejected') || error.message.toLowerCase().includes('user denied')) return 'Transaction cancelled by user.'; if (error.message.toLowerCase().includes('insufficient funds')) return 'Insufficient funds for transaction.'; } return 'An unexpected error occurred. Please try again.'; }
+
+// --- NEW: Diagnostic and Admin Functions ---
+
+export async function updateStalenessThreshold(newThreshold) {
+    if (!appState.collateralVaultContract) return showToast('Wallet not connected.', 'error');
+    
+    try {
+        const tx = await appState.collateralVaultContract.updateStalenesThreshold(newThreshold);
+        showToast('Updating staleness threshold...', 'info');
+        await tx.wait();
+        showToast('Staleness threshold updated successfully!', 'success');
+    } catch (error) {
+        showToast(getErrorMessage(error), 'error');
     }
-    if (error.message) {
-        if (error.message.toLowerCase().includes('user rejected') || error.message.toLowerCase().includes('user denied')) return 'Transaction cancelled by user.';
-        if (error.message.toLowerCase().includes('insufficient funds')) return 'Insufficient funds for transaction.';
-    }
-    return 'An unexpected error occurred. Please try again.';
 }
 
+export async function runNetworkDiagnostics() {
+    if (!appState.provider || !appState.collateralVaultContract) {
+        return showToast('Please connect wallet first.', 'error');
+    }
+    console.log('Running network diagnostics...');
+    
+    try {
+        // Test basic provider connection
+        const network = await appState.provider.getNetwork();
+        console.log('✓ Network connected:', network.chainId);
+        
+        // Test contract connectivity
+        const isPaused = await appState.collateralVaultContract.paused();
+        console.log('✓ Contract accessible, paused status:', isPaused);
+        
+        // Test price oracle
+        const price = await appState.collateralVaultContract.getEthGhsPrice();
+        console.log('✓ Price oracle accessible, price:', price.toString());
+        
+        showToast('All systems operational.', 'success');
+    } catch (error) {
+        console.error('Diagnostics failed:', error);
+        showToast(`Diagnostics failed: ${getErrorMessage(error)}`, 'error');
+    }
+}
+
+
+// --- Initialization ---
 function handleVisibilityChange() { if (!document.hidden && !appState.userAccount) { console.log('Page became visible, re-checking connection status.'); checkForExistingConnection(); } }
 async function initializeApp() { console.log("Initializing App (DOM Loaded)..."); const token = localStorage.getItem('accessToken'); const onAuthPage = window.location.pathname.endsWith('auth.html'); if (!token && !onAuthPage) { window.location.href = './auth.html'; return; } document.getElementById('walletBtn')?.addEventListener('click', connectWallet); document.getElementById('logoutBtn')?.addEventListener('click', logoutUser); const connectMetaMaskBtn = document.getElementById('connectMetaMaskBtn'); if (connectMetaMaskBtn) connectMetaMaskBtn.addEventListener('click', () => { document.getElementById('connectionModal').classList.remove('show'); connectWithMetaMask(); }); const connectWalletConnectBtn = document.getElementById('connectWalletConnectBtn'); if (connectWalletConnectBtn) connectWalletConnectBtn.addEventListener('click', () => { document.getElementById('connectionModal').classList.remove('show'); connectWithWalletConnect(); }); const cancelConnectionBtn = document.getElementById('cancelConnectionBtn'); if (cancelConnectionBtn) cancelConnectionBtn.addEventListener('click', () => { document.getElementById('connectionModal').classList.remove('show'); }); const menuToggle = document.getElementById('menu-toggle'); const navMenu = document.getElementById('nav-menu'); if (menuToggle && navMenu) { menuToggle.addEventListener('click', () => { navMenu.classList.toggle('active'); const icon = menuToggle.querySelector('i'); icon.classList.toggle('fa-bars', !navMenu.classList.contains('active')); icon.classList.toggle('fa-times', navMenu.classList.contains('active')); }); } document.addEventListener('visibilitychange', handleVisibilityChange, false); window.addEventListener('focus', () => { console.log('[Focus] Checking for wallet session on refocus'); if (!appState.userAccount || !appState.provider) { checkForExistingConnection(); } }); await initializeWalletConnect(); await checkForExistingConnection(); updateWalletUI(); setInterval(fetchProtocolStatus, 60000); }
 
