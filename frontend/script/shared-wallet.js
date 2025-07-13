@@ -17,9 +17,8 @@ const NETWORKS = {
 };
 const REQUIRED_CHAIN_ID = 80002;
 export const BACKEND_URL = 'https://tghsx.onrender.com';
-const COLLATERAL_VAULT_ADDRESS = "0x056A045a98190c2843377DB216CE95479b736743"; // Using latest deployed address
+const COLLATERAL_VAULT_ADDRESS = "0x056A045a98190c2843377DB216CE95479b736743";
 
-// FIX: Updated ABI to match CollateralVaultV3.sol
 const COLLATERAL_VAULT_ABI = [
     "event CollateralDeposited(address indexed user, uint256 amount, uint256 indexed blockNumber)",
     "event CollateralWithdrawn(address indexed user, uint256 amount)",
@@ -64,7 +63,7 @@ export const appState = {
 
 let walletConnectProvider = null;
 
-// --- Wallet Connection Logic (Omitted for brevity, no changes) ---
+// --- Wallet Connection Logic (Omitted for brevity) ---
 async function initializeWalletConnect() { console.log("Initializing WalletConnect..."); try { const projectId = '4571f8b102cc836bdd761e9798a0e1f4'; walletConnectProvider = await EthereumProvider.init({ projectId, chains: [REQUIRED_CHAIN_ID], showQrModal: true, qrModalOptions: { themeMode: "dark" }, metadata: { name: "tGHSX Protocol", description: "The Synthetic Ghanaian Cedi, backed by Crypto.", url: "https://tghsx.vercel.app", icons: ["https://tghsx.vercel.app/images/icons/icon-192x192.png"] } }); walletConnectProvider.on("disconnect", () => { console.log("[WalletConnect] Event: disconnect received."); resetWalletState(); }); console.log("WalletConnect Initialized Successfully."); } catch (e) { console.error("Fatal Error during WalletConnect initialization:", e); showToast("Could not start WalletConnect.", "error"); } }
 async function handleWalletConnectSession() { console.log("Handling WalletConnect Session..."); if (appState.isConnecting) return; appState.isConnecting = true; updateWalletUI(); try { const accounts = walletConnectProvider.accounts; if (!accounts || accounts.length === 0) { throw new Error('No accounts found after WalletConnect session was established.'); } appState.connectionType = 'walletconnect'; localStorage.setItem('walletConnected', 'walletconnect'); const provider = new ethers.providers.Web3Provider(walletConnectProvider); await setupProviderAndState(provider, accounts[0]); } catch (error) { console.error('Error processing WalletConnect session:', error); showToast(getErrorMessage(error), 'error'); resetWalletState(); } finally { appState.isConnecting = false; updateWalletUI(); } }
 export function connectWallet() { const modal = document.getElementById('connectionModal'); if (modal) modal.classList.add('show'); }
@@ -84,7 +83,27 @@ function updateWalletUI() { const walletBtn = document.getElementById('walletBtn
 export function formatAddress(address) { if (!address || address.length < 10) return ''; return `${address.slice(0, 6)}...${address.slice(-4)}`; }
 export function logoutUser() { disconnectWallet(); localStorage.removeItem('accessToken'); showToast('You have been logged out.', 'info'); setTimeout(() => { window.location.href = './auth.html'; }, 1500); }
 let toastTimeout; export function showToast(message, type = 'success') { const toast = document.getElementById('toastNotification'); if (!toast) return; if (toastTimeout) clearTimeout(toastTimeout); toast.textContent = message; toast.className = `toast show ${type}`; toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, 5000); }
-export function getErrorMessage(error) { if (error.code) { switch (error.code) { case 4001: return 'Transaction cancelled by user.'; case 4902: return 'Network not added to wallet. Please add Polygon Amoy.'; case -32603: return 'Internal JSON-RPC error. The contract may have rejected the transaction.'; case -32002: return 'Request already pending. Please check your wallet.'; case 'UNPREDICTABLE_GAS_LIMIT': return 'Transaction cannot be completed. The collateral ratio is likely out of the allowed range.'; case 'INSUFFICIENT_FUNDS': return 'Your wallet has insufficient MATIC for this transaction, including gas fees.'; } } if (error.message) { if (error.message.toLowerCase().includes('user rejected') || error.message.toLowerCase().includes('user denied')) return 'Transaction cancelled by user.'; if (error.message.toLowerCase().includes('insufficient funds')) return 'Insufficient funds for transaction.'; } return 'An unexpected error occurred. Please try again.'; }
+
+export function getErrorMessage(error) {
+    if (error.code) {
+        switch (error.code) {
+            case 4001: return 'Transaction cancelled by user.';
+            case 4902: return 'Network not added to wallet. Please add Polygon Amoy.';
+            case -32603: return 'Internal JSON-RPC error. The contract may have rejected the transaction.';
+            case -32002: return 'Request already pending. Please check your wallet.';
+            case 'UNPREDICTABLE_GAS_LIMIT': return 'Transaction cannot be completed. The collateral ratio is likely out of the allowed range.';
+            case 'INSUFFICIENT_FUNDS': return 'Your wallet has insufficient MATIC for this transaction, including gas fees.';
+            // FIX: Add a specific case for CALL_EXCEPTION to provide a more helpful message.
+            case 'CALL_EXCEPTION': return 'Contract call failed. This may be due to stale price oracles. The admin may need to adjust the staleness threshold.';
+        }
+    }
+    if (error.message) {
+        if (error.message.toLowerCase().includes('user rejected') || error.message.toLowerCase().includes('user denied')) return 'Transaction cancelled by user.';
+        if (error.message.toLowerCase().includes('insufficient funds')) return 'Insufficient funds for transaction.';
+    }
+    return 'An unexpected error occurred. Please try again.';
+}
+
 function handleVisibilityChange() { if (!document.hidden && !appState.userAccount) { console.log('Page became visible, re-checking connection status.'); checkForExistingConnection(); } }
 async function initializeApp() { console.log("Initializing App (DOM Loaded)..."); const token = localStorage.getItem('accessToken'); const onAuthPage = window.location.pathname.endsWith('auth.html'); if (!token && !onAuthPage) { window.location.href = './auth.html'; return; } document.getElementById('walletBtn')?.addEventListener('click', connectWallet); document.getElementById('logoutBtn')?.addEventListener('click', logoutUser); const connectMetaMaskBtn = document.getElementById('connectMetaMaskBtn'); if (connectMetaMaskBtn) connectMetaMaskBtn.addEventListener('click', () => { document.getElementById('connectionModal').classList.remove('show'); connectWithMetaMask(); }); const connectWalletConnectBtn = document.getElementById('connectWalletConnectBtn'); if (connectWalletConnectBtn) connectWalletConnectBtn.addEventListener('click', () => { document.getElementById('connectionModal').classList.remove('show'); connectWithWalletConnect(); }); const cancelConnectionBtn = document.getElementById('cancelConnectionBtn'); if (cancelConnectionBtn) cancelConnectionBtn.addEventListener('click', () => { document.getElementById('connectionModal').classList.remove('show'); }); const menuToggle = document.getElementById('menu-toggle'); const navMenu = document.getElementById('nav-menu'); if (menuToggle && navMenu) { menuToggle.addEventListener('click', () => { navMenu.classList.toggle('active'); const icon = menuToggle.querySelector('i'); icon.classList.toggle('fa-bars', !navMenu.classList.contains('active')); icon.classList.toggle('fa-times', navMenu.classList.contains('active')); }); } document.addEventListener('visibilitychange', handleVisibilityChange, false); window.addEventListener('focus', () => { console.log('[Focus] Checking for wallet session on refocus'); if (!appState.userAccount || !appState.provider) { checkForExistingConnection(); } }); await initializeWalletConnect(); await checkForExistingConnection(); updateWalletUI(); setInterval(fetchProtocolStatus, 60000); }
 
