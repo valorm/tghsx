@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from services.supabase_client import supabase_client
 from utils.auth import is_admin
-import os
+import os 
 
 auth_routes = Blueprint('auth', __name__)
 
