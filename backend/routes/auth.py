@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
-from services.supabase_client import supabase_client
+from dependencies import supabase_client
 from utils.auth import is_admin
-import os 
+import os
 
 auth_routes = Blueprint('auth', __name__)
 
@@ -26,7 +26,7 @@ def register():
 
         # Insert user profile into 'profiles' table
         profile_data = {
-            'user_id': str(user_id), 
+            'id': str(user_id), 
             'email': email, 
             'wallet_address': wallet_address,
             'is_admin': False # Default to not admin

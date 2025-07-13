@@ -1,50 +1,49 @@
-# In /backend/main.py
+from flask import Flask, jsonify
+from flask_cors import CORS
+from dotenv import load_dotenv
+import os
 
-from fastapi import FastAPI, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer
+# Load environment variables from .env file
+load_dotenv()
 
-# Import all your route modules
-from routes import auth, oracle, vault, mint, transactions, protocol, admin
-# --- NEW: Import the liquidations router ---
-from routes import liquidations
+# Import all the route blueprints from the routes package
+from routes.auth import auth_routes
+from routes.oracle import oracle_routes
+from routes.vault import vault_routes
+from routes.mint import mint_routes
+from routes.transactions import transactions_routes
+from routes.protocol import protocol_routes
+from routes.admin import admin_routes
+from routes.liquidations import liquidations_routes
 
-# --- Initialize FastAPI App ---
-app = FastAPI(
-    title="tGHSX Backend API",
-    description="API for managing tGHSX stablecoin operations.",
-    version="1.0.0"
-)
+# Initialize the Flask application
+app = Flask(__name__)
 
-# --- CORS Middleware ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Setup Cross-Origin Resource Sharing (CORS)
+# This allows your frontend to make requests to your backend.
+# In production, you should restrict the origins to your actual frontend URL.
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# --- Authentication Scheme ---
-bearer_scheme = HTTPBearer()
+# Register all the blueprints with the Flask app, defining their URL prefixes
+app.register_blueprint(auth_routes, url_prefix='/api/v1/auth')
+app.register_blueprint(oracle_routes, url_prefix='/api/v1/oracle')
+app.register_blueprint(vault_routes, url_prefix='/api/v1/vault')
+app.register_blueprint(mint_routes, url_prefix='/api/v1/mint')
+app.register_blueprint(transactions_routes, url_prefix='/api/v1/transactions')
+app.register_blueprint(protocol_routes, url_prefix='/api/v1/protocol')
+app.register_blueprint(admin_routes, url_prefix='/api/v1/admin')
+app.register_blueprint(liquidations_routes, url_prefix='/api/v1/liquidations')
 
-# --- Include All Routers ---
-app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-app.include_router(oracle.router, prefix="/oracle", tags=["Oracle"])
-app.include_router(mint.router, prefix="/mint", tags=["Minting"])
-app.include_router(vault.router, prefix="/vault", tags=["Vault Operations"])
-app.include_router(transactions.router, prefix="/transactions", tags=["Transactions"])
-app.include_router(protocol.router, prefix="/protocol", tags=["Protocol"])
-app.include_router(admin.router, prefix="/admin", tags=["Admin"])
-# --- NEW: Include the liquidations router ---
-app.include_router(liquidations.router, prefix="/liquidations", tags=["Liquidations"])
+@app.route("/")
+def read_root():
+    """
+    A simple root endpoint to confirm the API is running.
+    """
+    return jsonify({"message": "Welcome to the tGHSX Protocol API (Flask Version)"})
 
-
-# --- Root & Health Endpoints ---
-@app.get("/")
-async def read_root():
-    return {"message": "Welcome to the tGHSX Backend API!"}
-
-@app.get("/health")
-async def health_check():
-    return {"status": "ok", "message": "Backend is healthy"}
+# This block is for running the app locally for development.
+# It will not be used in production when running with Gunicorn.
+if __name__ == "__main__":
+    # Use the PORT environment variable if available, otherwise default to 8000
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)

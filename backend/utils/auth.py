@@ -1,57 +1,67 @@
-# In /backend/utils/auth.py
-
+from functools import wraps
+from flask import request, jsonify
+from dependencies import supabase_client
 import os
-from fastapi import Header, HTTPException, Depends
-import base64
-import json
 
-def get_current_user_id_from_token(authorization: str = Header(...)) -> str:
+def token_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': 'Authorization header missing'}), 401
+        
+        try:
+            token = auth_header.split(" ")[1]
+            user_response = supabase_client.auth.get_user(token)
+            # Add user object to the request context
+            kwargs['user'] = user_response.user
+        except Exception as e:
+            return jsonify({'error': 'Invalid token or user not found', 'details': str(e)}), 401
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+def is_admin(user_id):
     """
-    Decodes the Supabase JWT from the Authorization header to extract the user's ID (sub).
-    
-    This is a more realistic implementation, though for production, a proper
-    JWT validation library (like python-jose) with secret key verification is recommended.
+    Checks if a user has the admin role by checking the 'is_admin' flag in their profile.
+    It queries the 'id' column which is the primary key and foreign key to auth.users.
     """
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization scheme.")
-    
-    token = authorization.split(" ")[1]
-    
-    # A JWT is composed of three parts: header.payload.signature
-    # We need to decode the payload (the middle part)
+    if not user_id:
+        return False
     try:
-        payload_base64 = token.split('.')[1]
-        
-        # The payload is Base64Url encoded, which needs padding to be decoded.
-        # Add padding ('=') if the length is not a multiple of 4.
-        payload_base64 += '=' * (-len(payload_base64) % 4)
-        
-        # Decode the Base64 string and then parse it as JSON
-        decoded_payload = base64.b64decode(payload_base64).decode('utf-8')
-        payload_json = json.loads(decoded_payload)
-        
-        # The user's ID is stored in the 'sub' (subject) claim of the JWT
-        user_id = payload_json.get("sub")
-        
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token: 'sub' claim not found.")
-            
-        return user_id
-        
-    except (IndexError, base64.binascii.Error, json.JSONDecodeError) as e:
-        # This catches errors from malformed tokens
-        raise HTTPException(status_code=401, detail=f"Invalid token format: {e}")
+        # Correctly query using the 'id' column from the profiles table
+        profile = supabase_client.table('profiles').select('is_admin').eq('id', str(user_id)).single().execute()
+        if profile.data and profile.data.get('is_admin'):
+            return True
+        return False
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred during token processing: {e}")
+        # It's good practice to log the actual error for debugging.
+        print(f"Error checking admin status for user {user_id}: {e}")
+        return False
 
+def admin_required(f):
+    """
+    A decorator to protect routes that require admin privileges.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': 'Authorization header missing'}), 401
+        
+        try:
+            token = auth_header.split(" ")[1]
+            user_response = supabase_client.auth.get_user(token)
+            user_id = user_response.user.id
+            
+            if not is_admin(user_id):
+                return jsonify({'error': 'Admin access required'}), 403
+            
+            # Pass the user_id to the decorated function
+            kwargs['user_id'] = user_id
 
-def is_admin(user_id: str = Depends(get_current_user_id_from_token)):
-    """
-    A simple dependency to check if the current user is the designated admin.
-    """
-    ADMIN_USER_ID = os.getenv("ADMIN_USER_ID")
-    if not ADMIN_USER_ID:
-        raise HTTPException(status_code=500, detail="Admin user not configured on the server.")
-    if user_id != ADMIN_USER_ID:
-        raise HTTPException(status_code=403, detail="Forbidden: Admin access required.")
-    return user_id
+        except Exception as e:
+            return jsonify({'error': 'Invalid token or authentication error', 'details': str(e)}), 401
+        
+        return f(*args, **kwargs)
+    return decorated_function
