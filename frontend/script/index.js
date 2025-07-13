@@ -218,6 +218,15 @@ async function loadUserVaultData() {
 
     } catch (error) {
         console.error('Error loading vault data:', error);
+        // FIX: Add user-facing error handling for failed on-chain calls.
+        // This gives the user immediate feedback that something is wrong with the protocol data fetching.
+        showToast('Could not load your vault data. The protocol might be experiencing issues (e.g., stale price oracles).', 'error');
+        // FIX: Reset the UI to an error state so the user isn't looking at stale or incorrect data.
+        elements.vaultCollateral.textContent = 'Error';
+        elements.vaultDebt.textContent = 'Error';
+        elements.vaultRatio.textContent = 'Error';
+        elements.vaultHealthBadge.textContent = 'Error';
+        elements.vaultHealthBadge.className = 'collateral-ratio-badge danger';
     }
 }
 
