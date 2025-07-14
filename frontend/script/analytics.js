@@ -2,14 +2,13 @@
  * ==================================================================================
  * Analytics Page Logic (analytics.js)
  *
- * Fetches protocol health data from the backend and renders it using Chart.js.
- * Relies on shared-wallet.js for authentication and wallet state.
+ * Fetches protocol health data from the updated backend endpoint and renders it.
  * ==================================================================================
  */
 
 import { logoutUser, BACKEND_URL } from './shared-wallet.js';
 
-function formatCurrency(value, currency = 'GH₵') {
+function formatCurrency(value, currency = '$') {
     const num = parseFloat(value);
     if (isNaN(num)) return 'N/A';
     if (num >= 1_000_000) return `${currency}${(num / 1_000_000).toFixed(2)}M`;
@@ -36,24 +35,26 @@ async function fetchAnalyticsData() {
         
         const data = await response.json();
         
-        document.getElementById('tvlValue').textContent = formatCurrency(data.totalValueLocked, 'ETH ');
-        document.getElementById('totalDebt').textContent = formatCurrency(data.totalDebt, 'tGHSX ');
-        document.getElementById('activeVaults').textContent = data.numberOfVaults;
-        document.getElementById('avgRatio').textContent = `${parseFloat(data.averageCollateralizationRatio).toFixed(2)}%`;
+        // FIX: Use the new data keys from the updated backend response
+        document.getElementById('tvlValue').textContent = formatCurrency(data.totalValueLockedUSD, '$');
+        document.getElementById('totalDebt').textContent = formatCurrency(data.totalDebt, ''); // It's in tGHSX, no currency symbol
+        document.getElementById('collateralTypes').textContent = data.numberOfCollateralTypes;
+        document.getElementById('globalRatio').textContent = `${parseFloat(data.globalCollateralizationRatio).toFixed(2)}%`;
 
+        // Mock data for charts, as backend doesn't provide historical data yet
         const labels = ['6 days ago', '5 days ago', '4 days ago', '3 days ago', '2 days ago', 'Yesterday', 'Today'];
-        const tvlHistory = [10, 25, 40, 30, 55, 70, parseFloat(data.totalValueLocked)];
+        const tvlHistory = [10000, 25000, 40000, 30000, 55000, 70000, parseFloat(data.totalValueLockedUSD)];
         const debtHistory = [5000, 12000, 20000, 15000, 28000, 35000, parseFloat(data.totalDebt)];
 
-        renderChart('tvlChart', 'TVL (ETH)', labels, tvlHistory, '#3FB950');
+        renderChart('tvlChart', 'TVL (USD)', labels, tvlHistory, '#3FB950');
         renderChart('debtChart', 'Debt (tGHSX)', labels, debtHistory, 'var(--accent-primary)');
 
     } catch (error) {
         console.error('Error fetching analytics:', error);
         document.getElementById('tvlValue').textContent = 'Error';
         document.getElementById('totalDebt').textContent = 'Error';
-        document.getElementById('activeVaults').textContent = 'Error';
-        document.getElementById('avgRatio').textContent = 'Error';
+        document.getElementById('collateralTypes').textContent = 'Error';
+        document.getElementById('globalRatio').textContent = 'Error';
     }
 }
 
@@ -87,12 +88,8 @@ function renderChart(canvasId, label, labels, data, color) {
         }
     });
 
-    if (!window.chartInstances) {
-        window.chartInstances = {};
-    }
+    if (!window.chartInstances) window.chartInstances = {};
     window.chartInstances[canvasId] = chart;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    fetchAnalyticsData();
-});
+document.addEventListener('DOMContentLoaded', fetchAnalyticsData);

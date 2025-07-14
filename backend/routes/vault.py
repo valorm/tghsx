@@ -19,10 +19,21 @@ COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
 # --- Pydantic Models ---
 class SaveWalletRequest(BaseModel):
     wallet_address: str
+    # FIX: User should specify which collateral they are primarily using or viewing
+    default_collateral_address: str 
+
+class VaultStatusResponse(BaseModel):
+    collateralAmount: str
+    mintedAmount: str
+    collateralValueUSD: str
+    collateralRatio: str
+    isLiquidatable: bool
+    lastUpdateTime: int
 
 # --- Vault Endpoints ---
-@router.get("/status", response_model=Dict[str, Any])
+@router.get("/status/{collateral_address}", response_model=VaultStatusResponse)
 async def get_onchain_vault_status(
+    collateral_address: str,
     user: dict = Depends(get_current_user),
     supabase = Depends(get_supabase_admin_client)
 ):
@@ -31,19 +42,30 @@ async def get_onchain_vault_status(
         user_res = supabase.from_("profiles").select("wallet_address").eq("id", user_id).single().execute()
 
         if not user_res.data or not user_res.data.get("wallet_address"):
-            return {"ethCollateral": "0", "tghsxMinted": "0", "collateralizationRatio": "0", "isLiquidatable": False, "accruedFees": "0"}
+            # Return a default zero-state if user has no wallet saved
+            return VaultStatusResponse(collateralAmount="0", mintedAmount="0", collateralValueUSD="0", collateralRatio="0", isLiquidatable=False, lastUpdateTime=0)
         
         w3 = get_web3_provider()
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
-        position_data = vault_contract.functions.getUserPosition(Web3.to_checksum_address(user_res.data["wallet_address"])).call()
+        
+        # FIX: Correctly call getUserPosition and handle its return tuple.
+        # It returns (collateralAmount, mintedAmount, collateralValue, collateralRatio, isLiquidatable, lastUpdateTime)
+        position_data = vault_contract.functions.getUserPosition(
+            Web3.to_checksum_address(user_res.data["wallet_address"]),
+            Web3.to_checksum_address(collateral_address)
+        ).call()
 
-        return {
-            "ethCollateral": str(position_data[0]),
-            "tghsxMinted": str(position_data[1]),
-            "collateralizationRatio": str(position_data[2]),
-            "isLiquidatable": position_data[3],
-            "accruedFees": str(position_data[4])
-        }
+        # The contract returns values with 6 decimals of precision
+        tghsx_decimals = 6
+        
+        return VaultStatusResponse(
+            collateralAmount=str(position_data[0]), # Amount in smallest unit (e.g., wei)
+            mintedAmount=str(Decimal(position_data[1]) / Decimal(10**tghsx_decimals)),
+            collateralValueUSD=str(Decimal(position_data[2]) / Decimal(10**tghsx_decimals)),
+            collateralRatio=str(Decimal(position_data[3]) / Decimal(10**tghsx_decimals)),
+            isLiquidatable=position_data[4],
+            lastUpdateTime=position_data[5]
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve vault status: {e}")
 
@@ -52,24 +74,24 @@ async def save_wallet_address(
     request: SaveWalletRequest,
     user: dict = Depends(get_current_user)
 ):
-    # FIX: Get user ID from the 'sub' claim of the JWT
     user_id = user.get("sub")
     if not user_id:
         raise HTTPException(status_code=400, detail="Could not identify user from token.")
         
     supabase = get_supabase_admin_client()
     try:
-        response = supabase.from_("profiles").update({"wallet_address": request.wallet_address}).eq("id", user_id).execute()
+        # This logic is mostly fine, just updating the table schema slightly
+        update_data = {
+            "wallet_address": request.wallet_address,
+            "default_collateral_address": request.default_collateral_address
+        }
+        response = supabase.from_("profiles").update(update_data).eq("id", user_id).execute()
         
         if not response.data:
-            # This can happen if the profile doesn't exist yet, so we can create it.
-            # This is a good defensive measure.
-            insert_res = supabase.from_("profiles").insert({"id": user_id, "wallet_address": request.wallet_address}).execute()
-            if not insert_res.data:
-                 raise HTTPException(status_code=500, detail="Failed to save wallet address.")
+            insert_data = {"id": user_id, **update_data}
+            supabase.from_("profiles").insert(insert_data).execute()
 
         return {"message": "Wallet address saved successfully."}
     except Exception as e:
-        # Catch potential database errors more gracefully
         print(f"ERROR saving wallet address for user {user_id}: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred while saving the wallet address: {str(e)}")

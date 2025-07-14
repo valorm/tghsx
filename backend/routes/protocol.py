@@ -2,14 +2,12 @@
 
 import os
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict, Any
+from typing import Dict, Any, List
 from web3 import Web3
 from decimal import Decimal
 
 # Corrected Import Paths
 from services.web3_client import get_web3_provider
-from services.supabase_client import get_supabase_admin_client
-from services.oracle_service import get_eth_ghs_price
 from utils.utils import get_current_user, load_contract_abi
 
 router = APIRouter()
@@ -17,61 +15,59 @@ router = APIRouter()
 # --- Load Contract Details ---
 COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
 COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
+# We need a generic ERC20 ABI to check balances of collateral tokens
+ERC20_ABI = load_contract_abi("abi/ERC20.json") 
 
 @router.get("/health", response_model=Dict[str, Any])
 async def get_protocol_health(
-    # For MVP, we secure it. In production, this might be a public endpoint.
-    user: dict = Depends(get_current_user),
-    supabase = Depends(get_supabase_admin_client)
+    user: dict = Depends(get_current_user)
 ):
     """
-    Calculates and returns the latest aggregated health metrics for the protocol on-the-fly.
+    Calculates and returns aggregated health metrics for the protocol.
     """
     try:
-        # --- Step 1: Fetch On-Chain and Off-Chain Data ---
         w3 = get_web3_provider()
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
 
-        # Get Total Value Locked directly from the smart contract
-        total_value_locked_wei = vault_contract.functions.totalValueLocked().call()
-        total_value_locked_eth = Web3.from_wei(total_value_locked_wei, 'ether')
+        # --- Step 1: Fetch Total Debt and Vault Status ---
+        # FIX: Get total debt (totalMintedGlobal) directly from the contract's getVaultStatus function
+        status_data = vault_contract.functions.getVaultStatus().call()
+        total_debt = Decimal(status_data[0]) / Decimal(10**6) # tGHSX has 6 decimals
 
-        # Get all approved mint requests from the database to calculate total debt
-        approved_requests_res = supabase.from_("mint_requests").select("mint_amount, user_id").eq("status", "approved").execute()
+        # --- Step 2: Calculate Total Value Locked (TVL) ---
+        # FIX: Remove call to non-existent totalValueLocked(). Calculate it manually.
+        total_value_locked_usd = Decimal(0)
         
-        total_debt = Decimal(0)
-        active_vaults = set()
-
-        if approved_requests_res.data:
-            for req in approved_requests_res.data:
-                total_debt += Decimal(req['mint_amount'])
-                active_vaults.add(req['user_id'])
+        # Get the list of all supported collateral tokens
+        collateral_tokens: List[str] = vault_contract.functions.getAllCollateralTokens().call()
         
-        number_of_vaults = len(active_vaults)
+        for token_address in collateral_tokens:
+            token_contract = w3.eth.contract(address=Web3.to_checksum_address(token_address), abi=ERC20_ABI)
+            vault_token_balance = token_contract.functions.balanceOf(COLLATERAL_VAULT_ADDRESS).call()
+            
+            # Get the price for this specific collateral from the vault
+            collateral_config = vault_contract.functions.collateralConfigs(token_address).call()
+            # config is (enabled, price, lastPriceUpdate, maxLTV, liquidationBonus)
+            price = Decimal(collateral_config[1]) / Decimal(10**6) # Prices are stored with 6 decimals
+            
+            # Assuming collateral also has 6 decimals for simplicity, adjust if not
+            # A robust implementation would fetch decimals for each token
+            token_decimals = 6 
+            collateral_value_usd = (Decimal(vault_token_balance) / Decimal(10**token_decimals)) * price
+            total_value_locked_usd += collateral_value_usd
 
-        # --- Step 2: Calculate Average Collateralization Ratio ---
-        avg_collateral_ratio = "0"
+        # --- Step 3: Calculate Global Collateralization Ratio ---
+        global_collateral_ratio = "0.00"
         if total_debt > 0:
-            try:
-                # Get the current ETH price to value the collateral
-                price_data = get_eth_ghs_price()
-                eth_price_ghs = Decimal(str(price_data['eth_ghs_price'])) / Decimal(10**price_data['decimals'])
-                
-                total_collateral_value_ghs = total_value_locked_eth * eth_price_ghs
-                
-                # Calculate the global collateralization ratio for the protocol
-                ratio = (total_collateral_value_ghs / total_debt) * 100
-                avg_collateral_ratio = f"{ratio:.2f}"
-            except Exception as price_error:
-                print(f"Warning: Could not calculate average ratio due to price error: {price_error}")
-                avg_collateral_ratio = "N/A"
+            ratio = (total_value_locked_usd / total_debt) * 100
+            global_collateral_ratio = f"{ratio:.2f}"
 
-        # --- Step 3: Return the compiled data ---
         return {
-            "totalValueLocked": str(total_value_locked_eth),
+            "totalValueLockedUSD": str(total_value_locked_usd),
             "totalDebt": str(total_debt),
-            "numberOfVaults": number_of_vaults,
-            "averageCollateralizationRatio": avg_collateral_ratio
+            "globalCollateralizationRatio": global_collateral_ratio,
+            "isPaused": status_data[4],
+            "numberOfCollateralTypes": status_data[5]
         }
 
     except Exception as e:

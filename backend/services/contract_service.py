@@ -1,248 +1,100 @@
+# In /backend/services/contract_service.py
+
 import os
-from dotenv import load_dotenv
+from web3 import Web3
 from typing import Dict, Any
-from decimal import Decimal, getcontext
+from decimal import Decimal
 
-from supabase import Client
-from services.supabase_client import get_supabase_client
-from services.oracle_service import get_eth_ghs_price
+from services.web3_client import get_web3_provider
+from utils.utils import load_contract_abi
 
-# Load environment variables
-load_dotenv()
+# --- Environment & ABI Loading ---
+COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
+if not COLLATERAL_VAULT_ADDRESS:
+    raise RuntimeError("COLLATERAL_VAULT_ADDRESS not set in environment.")
 
-# Set precision for Decimal calculations
-getcontext().prec = 50  # High precision for financial calculations
+try:
+    COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
+except Exception as e:
+    raise RuntimeError(f"Failed to load CollateralVault ABI: {e}")
 
-# Constants (matching Solidity MIN_COLLATERAL_RATIO)
-MIN_COLLATERAL_RATIO_PERCENT = Decimal(os.getenv("MIN_COLLATERAL_RATIO", "150"))
 
-def _convert_decimals_to_str(data: Dict[str, Any]) -> Dict[str, Any]:
+class OnChainContractService:
     """
-    Recursively converts Decimal objects in a dictionary to strings.
-    This ensures JSON serializability for numeric values.
-    
-    Args:
-        data (Dict[str, Any]): The dictionary to process.
-    
-    Returns:
-        Dict[str, Any]: A new dictionary with Decimal values converted to strings.
+    This service provides helper methods to interact directly with the
+    CollateralVault smart contract, aligning with the updated backend routes.
+    It replaces the previous off-chain simulation logic.
     """
-    converted_data = {}
-    for key, value in data.items():
-        if isinstance(value, Decimal):
-            # Handle special Decimal values
-            if value.is_infinite():
-                converted_data[key] = "Infinite"
-            elif value.is_nan():
-                converted_data[key] = "NaN"
-            else:
-                converted_data[key] = str(value)
-        elif isinstance(value, dict):
-            converted_data[key] = _convert_decimals_to_str(value)
-        elif isinstance(value, list):
-            converted_data[key] = [
-                _convert_decimals_to_str(item) if isinstance(item, dict) 
-                else str(item) if isinstance(item, Decimal) and not item.is_infinite() and not item.is_nan()
-                else "Infinite" if isinstance(item, Decimal) and item.is_infinite()
-                else "NaN" if isinstance(item, Decimal) and item.is_nan()
-                else item 
-                for item in value
-            ]
-        else:
-            converted_data[key] = value
-    return converted_data
 
-class ContractService:
-    def __init__(self, db: Client):
-        """
-        Initializes the ContractService with a Supabase client.
-        
-        Args:
-            db (Client): The Supabase client instance.
-        """
-        self.db = db
+    def __init__(self):
+        """Initializes the service with a Web3 provider and contract instance."""
+        self.w3 = get_web3_provider()
+        if not self.w3.is_connected():
+            raise ConnectionError("Failed to connect to Web3 provider.")
+        self.vault_contract = self.w3.eth.contract(
+            address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS),
+            abi=COLLATERAL_VAULT_ABI
+        )
 
-    async def get_user_vault(self, user_id: str) -> Dict[str, Any]:
+    def get_user_position(self, user_address: str, collateral_address: str) -> Dict[str, Any]:
         """
-        Retrieves a user's vault data from Supabase, or creates a new one if it doesn't exist.
-        Ensures Decimal values are converted to strings for consistency.
-        
+        Fetches a user's detailed position directly from the smart contract.
+
         Args:
-            user_id (str): The ID of the user.
-        
+            user_address (str): The user's wallet address.
+            collateral_address (str): The address of the collateral token.
+
         Returns:
-            Dict[str, Any]: The user's vault data with Decimal values as strings.
-        
-        Raises:
-            Exception: If vault creation fails.
+            A dictionary containing the user's position details.
         """
-        response = self.db.from_("user_vaults").select("*").eq("user_id", user_id).limit(1).execute()
-
-        if response.data:
-            return _convert_decimals_to_str(response.data[0])
-        else:
-            # Create a new vault entry for the user if none exists
-            new_vault = {
-                "user_id": user_id,
-                "eth_collateral": str(Decimal('0.0')),  # Convert to string immediately
-                "tghsx_minted": str(Decimal('0.0'))      # Convert to string immediately
-            }
-            insert_response = self.db.from_("user_vaults").insert(new_vault).execute()
-            if insert_response.data:
-                return _convert_decimals_to_str(insert_response.data[0])
-            else:
-                raise Exception(f"Failed to create new user vault: {insert_response.last_error}")
-
-    async def deposit_eth_collateral(self, user_id: str, amount_eth: Decimal) -> Dict[str, Any]:
-        """
-        Simulates depositing ETH collateral for a user by updating their Supabase vault.
-        
-        Args:
-            user_id (str): The ID of the user.
-            amount_eth (Decimal): The amount of ETH to deposit.
-        
-        Returns:
-            Dict[str, Any]: A response with a message and updated vault data.
-        
-        Raises:
-            ValueError: If the deposit amount is not positive.
-            Exception: If the update fails.
-        """
-        if amount_eth <= 0:
-            raise ValueError("Deposit amount must be greater than 0.")
-
-        user_vault = await self.get_user_vault(user_id)
-        current_eth_collateral = Decimal(user_vault.get("eth_collateral", "0.0"))
-        new_eth_collateral = current_eth_collateral + amount_eth
-
-        update_response = self.db.from_("user_vaults").update({
-            "eth_collateral": str(new_eth_collateral)  # Convert to string for DB storage
-        }).eq("user_id", user_id).execute()
-
-        if update_response.data:
-            return {
-                "message": f"{amount_eth} ETH deposited successfully for user {user_id}",
-                "vault": _convert_decimals_to_str(update_response.data[0])
-            }
-        else:
-            raise Exception(f"Failed to update ETH collateral: {update_response.last_error}")
-
-    async def mint_tghsx_tokens(self, user_id: str, amount_tghsx: Decimal) -> Dict[str, Any]:
-        """
-        Simulates minting tGHSX tokens for a user by updating their Supabase vault.
-        Performs collateral ratio checks.
-        
-        Args:
-            user_id (str): The ID of the user.
-            amount_tghsx (Decimal): The amount of tGHSX to mint.
-        
-        Returns:
-            Dict[str, Any]: A response with a message, updated vault data, and projected ratio.
-        
-        Raises:
-            ValueError: If the mint amount is not positive or collateral ratio is insufficient.
-            Exception: If the update fails or price data cannot be retrieved.
-        """
-        if amount_tghsx <= 0:
-            raise ValueError("Mint amount must be greater than 0.")
-
-        user_vault = await self.get_user_vault(user_id)
-        current_eth_collateral = Decimal(user_vault.get("eth_collateral", "0.0"))
-        current_tghsx_minted = Decimal(user_vault.get("tghsx_minted", "0.0"))
-        new_tghsx_minted = current_tghsx_minted + amount_tghsx
-
         try:
-            price_data = await get_eth_ghs_price()
-            eth_ghs_price_raw = Decimal(str(price_data['eth_ghs_price']))
-            price_decimals = Decimal(str(10**price_data['decimals']))
-            collateral_value_ghs = (current_eth_collateral * eth_ghs_price_raw) / price_decimals
-        except Exception as e:
-            raise Exception(f"Unable to retrieve current ETH/GHS price for collateral calculation: {e}")
+            # The contract's getUserPosition returns a tuple:
+            # (collateralAmount, mintedAmount, collateralValue, collateralRatio, isLiquidatable, lastUpdateTime)
+            position_data = self.vault_contract.functions.getUserPosition(
+                Web3.to_checksum_address(user_address),
+                Web3.to_checksum_address(collateral_address)
+            ).call()
 
-        if new_tghsx_minted <= 0:
-            projected_ratio = Decimal(MIN_COLLATERAL_RATIO_PERCENT + 1)
-        else:
-            projected_ratio = (collateral_value_ghs / new_tghsx_minted) * Decimal(100)
-
-        if projected_ratio < MIN_COLLATERAL_RATIO_PERCENT:
-            raise ValueError(
-                f"Collateral ratio ({projected_ratio:.2f}%) below minimum requirement "
-                f"({MIN_COLLATERAL_RATIO_PERCENT}%). Add more collateral or mint less tGHSX."
-            )
-
-        update_response = self.db.from_("user_vaults").update({
-            "tghsx_minted": str(new_tghsx_minted)  # Convert to string for DB storage
-        }).eq("user_id", user_id).execute()
-
-        if update_response.data:
+            # Convert raw data to a more usable dictionary format
+            # Note: The contract handles decimal precision, so we return the raw values
+            # and let the calling route handle formatting for the API response.
             return {
-                "message": f"{amount_tghsx} tGHSX minted successfully for user {user_id}",
-                "vault": _convert_decimals_to_str(update_response.data[0]),
-                "projected_ratio": f"{projected_ratio:.2f}%"
+                "collateralAmount": position_data[0],
+                "mintedAmount": position_data[1],
+                "collateralValue": position_data[2],
+                "collateralRatio": position_data[3],
+                "isLiquidatable": position_data[4],
+                "lastUpdateTime": position_data[5]
             }
-        else:
-            raise Exception(f"Failed to update tGHSX minted amount: {update_response.last_error}")
+        except Exception as e:
+            print(f"Error fetching user position for {user_address} with collateral {collateral_address}: {e}")
+            # Return a zero-state dictionary on failure
+            return {
+                "collateralAmount": 0,
+                "mintedAmount": 0,
+                "collateralValue": 0,
+                "collateralRatio": 0,
+                "isLiquidatable": False,
+                "lastUpdateTime": 0
+            }
 
-    async def get_vault_status(self, user_id: str) -> Dict[str, Any]:
+    def get_global_vault_status(self) -> Dict[str, Any]:
         """
-        Retrieves a user's vault status including current collateralization ratio.
-        
-        Args:
-            user_id (str): The ID of the user.
-        
-        Returns:
-            Dict[str, Any]: The vault status with all Decimal values as strings.
+        Fetches the global status of the vault from the smart contract.
         """
-        user_vault = await self.get_user_vault(user_id)
-        eth_collateral = Decimal(user_vault.get("eth_collateral", "0.0"))
-        tghsx_minted = Decimal(user_vault.get("tghsx_minted", "0.0"))
+        try:
+            # The contract's getVaultStatus returns a tuple:
+            # (totalMinted, globalDailyMinted, globalDailyRemaining, autoMintEnabled, paused, totalCollateralTypes)
+            status_data = self.vault_contract.functions.getVaultStatus().call()
 
-        collateral_value_ghs = Decimal(0)
-        price_fetch_error = None
-
-        if eth_collateral > 0:
-            try:
-                price_data = await get_eth_ghs_price()
-                eth_ghs_price_raw = Decimal(str(price_data['eth_ghs_price']))
-                price_decimals = Decimal(str(10**price_data['decimals']))
-                collateral_value_ghs = (eth_collateral * eth_ghs_price_raw) / price_decimals
-            except Exception as e:
-                # Log the error but don't fail the entire request
-                price_fetch_error = str(e)
-                print(f"Warning: Failed to fetch ETH/GHS price: {e}")
-                # Use a fallback value or set to 0 if price fetch fails
-                collateral_value_ghs = Decimal(0)
-
-        # Calculate ratio and determine health status
-        if tghsx_minted > 0 and collateral_value_ghs > 0:
-            current_ratio = (collateral_value_ghs / tghsx_minted) * Decimal(100)
-            current_ratio_str = f"{current_ratio:.2f}%"
-            is_healthy = current_ratio >= MIN_COLLATERAL_RATIO_PERCENT
-        elif tghsx_minted > 0 and collateral_value_ghs == 0:
-            # If we can't get price data, we can't calculate ratio
-            current_ratio_str = "Unable to calculate (price data unavailable)"
-            is_healthy = False
-        elif eth_collateral > 0:
-            current_ratio_str = "Infinite" if collateral_value_ghs > 0 else "Unable to calculate (price data unavailable)"
-            is_healthy = collateral_value_ghs > 0  # Only healthy if we can get price data
-        else:
-            current_ratio_str = "0.00%"
-            is_healthy = False
-
-        # Build the status dict with all values as strings
-        status = {
-            "user_id": user_id,
-            "eth_collateral": str(eth_collateral),
-            "tghsx_minted": str(tghsx_minted),
-            "collateral_value_ghs": str(collateral_value_ghs),
-            "current_ratio": current_ratio_str,
-            "is_healthy": is_healthy,  # Boolean is JSON serializable
-        }
-        
-        # Add price fetch error info if there was one
-        if price_fetch_error:
-            status["price_fetch_error"] = price_fetch_error
-            status["warning"] = "Collateral value and ratios may be inaccurate due to price feed unavailability"
-        
-        # Apply the conversion function as a final safety check
-        return _convert_decimals_to_str(status)
+            return {
+                "totalMintedGlobal": status_data[0],
+                "globalDailyMinted": status_data[1],
+                "globalDailyRemaining": status_data[2],
+                "isAutoMintEnabled": status_data[3],
+                "isPaused": status_data[4],
+                "totalCollateralTypes": status_data[5]
+            }
+        except Exception as e:
+            print(f"Error fetching global vault status: {e}")
+            return {}

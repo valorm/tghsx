@@ -3,73 +3,73 @@
 import os
 import json
 from web3 import Web3
-from web3.contract import Contract
 from typing import Any
 
 from .web3_client import get_web3_provider
 
+"""
+REFACTOR NOTE:
+
+This service's original purpose was to perform on-chain actions like minting
+using a centralized admin key. This was identified as incompatible with the
+smart contract's design, which requires the user (`msg.sender`) to initiate
+actions like `mintTokens`.
+
+The responsibility for building and sending transactions has been moved
+directly into the relevant backend route handlers (e.g., in `admin.py` for
+admin-only actions like pausing the contract).
+
+This file is kept as a placeholder for potential future web3 utilities
+but is no longer central to the minting workflow.
+"""
+
 # --- Environment Variables ---
-# These now match your .env file exactly
-TGHSX_TOKEN_ADDRESS = os.getenv("TGHSX_TOKEN_ADDRESS")
-COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
-MINTER_PRIVATE_KEY = os.getenv("MINTER_PRIVATE_KEY")
+ADMIN_PRIVATE_KEY = os.getenv("MINTER_PRIVATE_KEY") # Renamed for clarity
 
-# --- ABI Paths ---
-# Assumes you create an 'abi' folder in 'backend'
-TGHSX_TOKEN_ABI_PATH = "abi/TGHSXToken.json"
-COLLATERAL_VAULT_ABI_PATH = "abi/CollateralVault.json"
-
-def load_contract_abi(filepath: str) -> Any:
-    """Loads a JSON ABI from a Hardhat artifact file."""
-    try:
-        with open(filepath, 'r') as f:
-            artifact = json.load(f)
-            return artifact['abi']
-    except Exception as e:
-        raise FileNotFoundError(f"Could not load ABI from {filepath}. Ensure it exists. {e}")
-
-# Load ABIs when the service module is loaded
-try:
-    TGHSX_TOKEN_ABI = load_contract_abi(TGHSX_TOKEN_ABI_PATH)
-    # COLLATERAL_VAULT_ABI = load_contract_abi(COLLATERAL_VAULT_ABI_PATH) # Will be used in later tasks
-except FileNotFoundError as e:
-    print(f"CRITICAL ERROR: {e}")
-    raise SystemExit(e)
-
-async def mint_tokens_for_user(recipient_address: str, amount_wei: int) -> str:
+def send_admin_transaction(contract: Any, function_name: str, args: list) -> str:
     """
-    Calls the mint function on the TGHSXToken smart contract.
+    A utility function to send a transaction from the admin account.
+    This can be used for contract functions that are restricted to an admin role.
+
+    Args:
+        contract: The web3 contract instance.
+        function_name: The name of the function to call.
+        args: A list of arguments for the function.
 
     Returns:
         The transaction hash as a hex string.
     """
-    if not MINTER_PRIVATE_KEY or not TGHSX_TOKEN_ADDRESS:
-        raise ValueError("MINTER_PRIVATE_KEY or TGHSX_TOKEN_ADDRESS is not set in .env")
+    if not ADMIN_PRIVATE_KEY:
+        raise ValueError("ADMIN_PRIVATE_KEY is not set in environment.")
 
     w3 = get_web3_provider()
-    contract = w3.eth.contract(address=Web3.to_checksum_address(TGHSX_TOKEN_ADDRESS), abi=TGHSX_TOKEN_ABI)
-    
-    minter_account = w3.eth.account.from_key(MINTER_PRIVATE_KEY)
-    
+    admin_account = w3.eth.account.from_key(ADMIN_PRIVATE_KEY)
+
     try:
+        # Build the function call
+        function_call = contract.functions[function_name](*args)
+
+        # Estimate gas and build the transaction payload
+        gas_estimate = function_call.estimate_gas({'from': admin_account.address})
         tx_payload = {
-            'from': minter_account.address,
-            'nonce': w3.eth.get_transaction_count(minter_account.address),
+            'from': admin_account.address,
+            'nonce': w3.eth.get_transaction_count(admin_account.address),
+            'gas': int(gas_estimate * 1.2), # Add 20% buffer
+            'gasPrice': w3.eth.gas_price,
         }
         
-        mint_tx = contract.functions.mint(
-            Web3.to_checksum_address(recipient_address),
-            amount_wei
-        ).build_transaction(tx_payload)
-        
-        signed_tx = w3.eth.account.sign_transaction(mint_tx, private_key=MINTER_PRIVATE_KEY)
+        # Build, sign, and send the transaction
+        transaction = function_call.build_transaction(tx_payload)
+        signed_tx = w3.eth.account.sign_transaction(transaction, private_key=ADMIN_PRIVATE_KEY)
         tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
         
+        # Wait for the receipt and check status
+        tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
         if tx_receipt['status'] == 0:
-            raise Exception("On-chain transaction failed.")
+            raise Exception(f"Admin transaction for '{function_name}' failed on-chain.")
             
         return tx_hash.hex()
+        
     except Exception as e:
-        print(f"ERROR: On-chain minting failed for address {recipient_address}. Reason: {e}")
+        print(f"ERROR: On-chain admin transaction failed for function '{function_name}'. Reason: {e}")
         raise e

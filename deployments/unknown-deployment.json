@@ -1,0 +1,16 @@
+{
+  "network": "unknown",
+  "chainId": 80002,
+  "timestamp": "2025-07-14T16:56:39.546Z",
+  "deployer": "0x1a0312B0453507CC412012Cc699f8d64d8219aeE",
+  "contracts": {
+    "TGHSXToken": "0xe976cb80837AAb4B024e6Bc5C73FdDF0CA7F9362",
+    "CollateralVault": "0xbFA4883C7D9dE2b2A8BAb691F555302E0A20882d",
+    "MockTokens": {
+      "USDC": "0x49e2F85451d28B85879cCC9227832CC39a7442eE",
+      "WETH": "0x4D6B27aDcA165154a1AFB58b34A152Bc8BeFBbba",
+      "WBTC": "0x447bA00D99d16908B32F3459527D71CfEF0470F7",
+      "WMATIC": "0xF0Fb3f5fdBb8331B7De58e942472FB4060c2E97B"
+    }
+  }
+}

@@ -1,25 +1,45 @@
-    services:
-      - type: web
-        name: tghs-backend
-        runtime: python
-        plan: free 
-        buildCommand: "pip install -r requirements.txt"
-        startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
-        envVars:
-          - key: AMOY_RPC_URL
-            fromGroup: tghs-env
-          - key: PRIVATE_KEY
-            fromGroup: tghs-env
-          - key: TGHSX_TOKEN_ADDRESS
-            fromGroup: tghs-env
-          - key: COLLATERAL_VAULT_ADDRESS
-            fromGroup: tghs-env
-          - key: CHAINLINK_ETH_USD_PRICE_FEED_ADDRESS
-            fromGroup: tghs-env
-          - key: CHAINLINK_USD_GHS_PRICE_FEED_ADDRESS
-            fromGroup: tghs-env
-          - key: SUPABASE_URL
-            fromGroup: tghs-env
-          - key: SUPABASE_KEY
-            fromGroup: tghs-env
-    
+services:
+  - type: web
+    name: tghsx-backend
+    runtime: python
+    plan: free # Or your preferred plan
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      # --- Environment Variable Group ---
+      # All secrets should be stored in a single Render Secret Group (e.g., 'tghs-env')
+      # for better security and management.
+
+      # Blockchain & Contract Configuration
+      - key: AMOY_RPC_URL
+        fromGroup: tghs-env
+      - key: MINTER_PRIVATE_KEY # FIX: Corrected name to match os.getenv("MINTER_PRIVATE_KEY")
+        fromGroup: tghs-env
+      - key: TGHSX_TOKEN_ADDRESS
+        fromGroup: tghs-env
+      - key: COLLATERAL_VAULT_ADDRESS
+        fromGroup: tghs-env
+
+      # Price Oracle Configuration
+      - key: CHAINLINK_ETH_USD_PRICE_FEED_ADDRESS
+        fromGroup: tghs-env
+      - key: CHAINLINK_USD_GHS_PRICE_FEED_ADDRESS
+        fromGroup: tghs-env
+
+      # Supabase Configuration
+      - key: SUPABASE_URL
+        fromGroup: tghs-env
+      - key: SUPABASE_KEY # This is the public 'anon' key
+        fromGroup: tghs-env
+      - key: SUPABASE_SERVICE_KEY # This is the secret 'service_role' key
+        fromGroup: tghs-env
+      - key: SUPABASE_JWT_SECRET # NEW: Added the JWT secret for token validation
+        fromGroup: tghs-env
+      
+      # Application Configuration
+      - key: ADMIN_USER_ID # NEW: Added the Supabase user ID for the admin
+        fromGroup: tghs-env
+      - key: TELEGRAM_BOT_TOKEN # For sending mint request notifications
+        fromGroup: tghs-env
+      - key: TELEGRAM_CHAT_ID # The chat/channel ID to send notifications to
+        fromGroup: tghs-env
