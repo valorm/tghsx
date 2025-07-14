@@ -2,9 +2,10 @@
 const { ethers } = require("hardhat");
 
 // --- YOUR DEPLOYED ADDRESSES ---
-const collateralVaultAddress = "0xbFA4883C7D9dE2b2A8BAb691F555302E0A20882d";
-const wmaticTokenAddress = "0xF0Fb3f5fdBb8331B7De58e942472FB4060c2E97B";
-// -------------------------------
+const collateralVaultAddress = "0x8dc1E1E376E5f105Ee22b6a20F943bbd897e192B";
+const tghsxTokenAddress = "0x7aD3121876c4F8104F3703efe3034CE632974943";
+const wmaticTokenAddress = "0x13c09eAa18d75947A5426CaeDdEb65922400028c";
+// ------------------------------------
 
 async function main() {
     const [account] = await ethers.getSigners();
@@ -12,10 +13,11 @@ async function main() {
 
     const collateralVault = await ethers.getContractAt("CollateralVault", collateralVaultAddress);
     const wmaticToken = await ethers.getContractAt("MockERC20", wmaticTokenAddress);
+    const tghsxToken = await ethers.getContractAt("TGHSXToken", tghsxTokenAddress);
 
     // Amounts to use (with correct decimals)
-    const depositAmount = ethers.utils.parseUnits("1000", 18); // 1,000 WMATIC
-    const mintAmount = ethers.utils.parseUnits("400", 6); // 400 tGHSX
+    const depositAmount = ethers.utils.parseUnits("1000", 18); // 1,000 WMATIC (18 decimals)
+    const mintAmount = ethers.utils.parseUnits("400", 6);    // 400 tGHSX (6 decimals)
 
     console.log(`\n1. Approving Vault to spend ${ethers.utils.formatUnits(depositAmount, 18)} WMATIC...`);
     const approveTx = await wmaticToken.approve(collateralVault.address, depositAmount);
@@ -27,36 +29,37 @@ async function main() {
     await depositTx.wait();
     console.log("✅ Deposit successful.");
 
-    // --- 🕵️‍♂️ ADDED DEBUGGING LOGS ---
-    console.log("\n--- 🕵️‍♂️ Pre-Mint Diagnostics ---");
-    const userStatus = await collateralVault.getUserMintStatus(account.address);
-    const vaultStatus = await collateralVault.getVaultStatus();
-    const position = await collateralVault.getUserPosition(account.address, wmaticToken.address);
-
-    console.log("User Status:");
-    console.log(`  - Cooldown Remaining: ${userStatus.cooldownRemaining.toString()} seconds`);
-    console.log(`  - Daily Mint Count: ${userStatus.dailyMintCount.toString()}`);
-    console.log(`  - Daily Minted: ${ethers.utils.formatUnits(userStatus.dailyMinted, 6)} tGHSX`);
-    console.log("Vault Status:");
-    console.log(`  - Global Daily Minted: ${ethers.utils.formatUnits(vaultStatus.dailyMinted, 6)} tGHSX`);
-    console.log("Position Status:");
-    console.log(`  - Collateral Value: $${(position.collateralValue / 1e6).toFixed(2)}`);
-    console.log(`  - Required Collateral for Mint: $${((mintAmount * 150) / 100 / 1e6).toFixed(2)}`);
-    console.log("--------------------------------\n");
-    // --- END DEBUGGING LOGS ---
-
-    console.log(`3. Minting ${ethers.utils.formatUnits(mintAmount, 6)} tGHSX...`);
-    const mintTx = await collateralVault.mintTokens(wmaticToken.address, mintAmount);
+    console.log(`\n3. Minting ${ethers.utils.formatUnits(mintAmount, 6)} tGHSX with a manual gas limit...`);
+    const mintTx = await collateralVault.mintTokens(
+        wmaticTokenAddress,
+        mintAmount,
+        { gasLimit: 500000 } // Set a generous, manual gas limit
+    );
     await mintTx.wait();
-    console.log("✅ Minting successful.");
+    console.log("✅ Minting successful!");
+    
+    console.log("\n4. Checking final balances and position...");
+    const finalWmaticBalance = await wmaticToken.balanceOf(account.address);
+    const finalTghsxBalance = await tghsxToken.balanceOf(account.address);
+    const position = await collateralVault.getUserPosition(account.address, wmaticTokenAddress);
+    
+    const expectedCollateralValue = (parseFloat(ethers.utils.formatUnits(position.collateralAmount, 18)) * 0.8).toFixed(2);
 
-    console.log("\n4. Checking user position...");
-    const finalPosition = await collateralVault.getUserPosition(account.address, wmaticToken.address);
-    console.log("   - Collateral Deposited:", ethers.utils.formatUnits(finalPosition.collateralAmount, 18), "WMATIC");
-    console.log("   - tGHSX Minted:", ethers.utils.formatUnits(finalPosition.mintedAmount, 6), "tGHSX");
-    console.log("   - Collateralization Ratio:", (finalPosition.collateralRatio / 1e6).toFixed(2), "%");
+    console.log("   - Your WMATIC Balance:", ethers.utils.formatUnits(finalWmaticBalance, 18));
+    console.log("   - Your tGHSX Balance:", ethers.utils.formatUnits(finalTghsxBalance, 6));
+    console.log("   ---------------------------------");
+    console.log("   Position Details:");
+    console.log("   - Collateral Deposited:", ethers.utils.formatUnits(position.collateralAmount, 18), "WMATIC");
+    console.log("   - tGHSX Minted:", ethers.utils.formatUnits(position.mintedAmount, 6), "tGHSX");
+    console.log(`   - Collateral Value: $${ethers.utils.formatUnits(position.collateralValue, 6)} (Expected: ~$${expectedCollateralValue})`);
+    
+    // CORRECTED: The ratio from the contract is a percentage scaled by 1e6.
+    // To display it, we just need to divide by 1e4 (or 1e6 / 100).
+    const displayRatio = (position.collateralRatio.toNumber() / 10000).toFixed(2);
+    console.log("   - Collateralization Ratio:", displayRatio, "%");
 
-    console.log("\n🎉 Interaction complete!");
+
+    console.log("\n🎉 Interaction with corrected contracts complete!");
 }
 
 main()

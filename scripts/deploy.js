@@ -40,7 +40,6 @@ async function main() {
         { name: "Mock USDC", symbol: "USDC", decimals: 6, supply: ethers.utils.parseUnits("1000000", 6) },
         { name: "Mock WETH", symbol: "WETH", decimals: 18, supply: ethers.utils.parseUnits("1000", 18) },
         { name: "Mock WBTC", symbol: "WBTC", decimals: 8, supply: ethers.utils.parseUnits("100", 8) },
-    
         { name: "Mock WMATIC", symbol: "WMATIC", decimals: 18, supply: ethers.utils.parseUnits("5000000", 18) }
     ];
 
@@ -60,17 +59,24 @@ async function main() {
     console.log("  ✅ Role granted.");
 
     console.log("  > Adding collateral types to Vault...");
+    // CORRECTED: Added 'decimals' property to each collateral object
     const collateralData = [
-        { symbol: "USDC", token: mockTokens.USDC, price: ethers.utils.parseUnits("1", 6), maxLTV: 8500, liquidationBonus: 500 },
-        { symbol: "WETH", token: mockTokens.WETH, price: ethers.utils.parseUnits("3000", 6), maxLTV: 8000, liquidationBonus: 1000 },
-        { symbol: "WBTC", token: mockTokens.WBTC, price: ethers.utils.parseUnits("60000", 6), maxLTV: 7500, liquidationBonus: 1000 },
-       
-        { symbol: "WMATIC", token: mockTokens.WMATIC, price: ethers.utils.parseUnits("0.8", 6), maxLTV: 7500, liquidationBonus: 1200 }
+        { symbol: "USDC", token: mockTokens.USDC, decimals: 6, price: ethers.utils.parseUnits("1", 6), maxLTV: 8500, liquidationBonus: 500 },
+        { symbol: "WETH", token: mockTokens.WETH, decimals: 18, price: ethers.utils.parseUnits("3000", 6), maxLTV: 8000, liquidationBonus: 1000 },
+        { symbol: "WBTC", token: mockTokens.WBTC, decimals: 8, price: ethers.utils.parseUnits("60000", 6), maxLTV: 7500, liquidationBonus: 1000 },
+        { symbol: "WMATIC", token: mockTokens.WMATIC, decimals: 18, price: ethers.utils.parseUnits("0.8", 6), maxLTV: 7500, liquidationBonus: 1200 }
     ];
 
     for (const collateral of collateralData) {
         console.log(`    - Adding ${collateral.symbol}...`);
-        await (await collateralVault.addCollateral(collateral.token, collateral.price, collateral.maxLTV, collateral.liquidationBonus)).wait(AMOY_CONFIG.confirmations);
+        // CORRECTED: Pass the collateral's decimals as the fifth argument
+        await (await collateralVault.addCollateral(
+            collateral.token,
+            collateral.price,
+            collateral.maxLTV,
+            collateral.liquidationBonus,
+            collateral.decimals // <-- Pass decimals to the function
+        )).wait(AMOY_CONFIG.confirmations);
         console.log(`    ✅ ${collateral.symbol} added.`);
     }
 
@@ -78,6 +84,7 @@ async function main() {
     if (networkName !== "unknown" && process.env.POLYGONSCAN_API_KEY) {
         console.log("\n🔍 5. Verifying contracts on Polygonscan...");
         await verify(tghsxToken.address, []);
+        // CORRECTED: The vault constructor only takes one argument
         await verify(collateralVault.address, [tghsxToken.address]);
         for (const config of tokenConfigs) {
            await verify(mockTokens[config.symbol], [config.name, config.symbol, config.decimals, config.supply]);
