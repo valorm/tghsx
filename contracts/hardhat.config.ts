@@ -2,9 +2,20 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "dotenv/config";
 
+// Debug: Log environment variables
+console.log("=== DEBUG INFO ===");
+console.log("POLYGON_AMOY_RPC_URL:", process.env.POLYGON_AMOY_RPC_URL);
+console.log("PRIVATE_KEY exists:", !!process.env.PRIVATE_KEY);
+console.log("Current working directory:", process.cwd());
+console.log("=== END DEBUG ===");
+
 const POLYGON_AMOY_RPC_URL = process.env.POLYGON_AMOY_RPC_URL || "";
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY;
+
+// Additional debug
+console.log("Final POLYGON_AMOY_RPC_URL value:", POLYGON_AMOY_RPC_URL);
+console.log("URL length:", POLYGON_AMOY_RPC_URL.length);
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -17,7 +28,6 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-
     amoy: {
       url: POLYGON_AMOY_RPC_URL,
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
