@@ -21,13 +21,14 @@ app = FastAPI(
 )
 
 # --- CORS (Cross-Origin Resource Sharing) Middleware ---
-# For development, we allow all origins.
-# For production, this should be restricted to the specific frontend domain.
-# Example for production:
-# origins = [
-#     "https://your-frontend-domain.com",
-# ]
-origins = ["*"]
+# FIX: Explicitly list the frontend origin to resolve the CORS error.
+# Using a wildcard ("*") is not allowed when `allow_credentials=True`.
+origins = [
+    "https://tghsx.vercel.app",
+    "http://localhost",
+    "http://localhost:8080",
+    "http://127.0.0.1:5500" 
+]
 
 app.add_middleware(
     CORSMiddleware,
