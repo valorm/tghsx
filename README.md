@@ -108,8 +108,8 @@ Manages protocol logic and user interactions.
 
 ### Deployed Contracts on Polygon Amoy
 
-* **TGHSXToken:** `0x7aD3121876c4F8104F3703efe3034CE632974943`
-* **CollateralVault:** `0x8dc1E1E376E5f105Ee22b6a20F943bbd897e192B`
+* **TGHSXToken:** `0xb04093d34F5feC6DE685B8684F3e2086dd866a50`
+* **CollateralVault:** `0xF681Ba510d3C93A49a7AB2d02d9697BB2B0091FE`
 
 ---
 
