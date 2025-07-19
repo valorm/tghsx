@@ -14,6 +14,9 @@ router = APIRouter()
 
 # --- Load Contract Details ---
 COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
+if not COLLATERAL_VAULT_ADDRESS:
+    raise RuntimeError("COLLATERAL_VAULT_ADDRESS is not set in the environment.")
+    
 COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
 # We need a generic ERC20 ABI to check balances of collateral tokens
 ERC20_ABI = load_contract_abi("abi/ERC20.json") 
@@ -28,11 +31,12 @@ async def get_protocol_health(
     try:
         w3 = get_web3_provider()
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
+        PRECISION = 10**6 # For tGHSX and prices
 
         # --- Step 1: Fetch Total Debt and Vault Status ---
         # FIX: Get total debt (totalMintedGlobal) directly from the contract's getVaultStatus function
         status_data = vault_contract.functions.getVaultStatus().call()
-        total_debt = Decimal(status_data[0]) / Decimal(10**6) # tGHSX has 6 decimals
+        total_debt = Decimal(status_data[0]) / Decimal(PRECISION) # tGHSX has 6 decimals
 
         # --- Step 2: Calculate Total Value Locked (TVL) ---
         # FIX: Remove call to non-existent totalValueLocked(). Calculate it manually.
@@ -41,31 +45,32 @@ async def get_protocol_health(
         # Get the list of all supported collateral tokens
         collateral_tokens: List[str] = vault_contract.functions.getAllCollateralTokens().call()
         
-        for token_address in collateral_tokens:
-            token_contract = w3.eth.contract(address=Web3.to_checksum_address(token_address), abi=ERC20_ABI)
+        for token_address_str in collateral_tokens:
+            token_address = Web3.to_checksum_address(token_address_str)
+            token_contract = w3.eth.contract(address=token_address, abi=ERC20_ABI)
+            
+            # Get the total amount of this collateral held by the vault
             vault_token_balance = token_contract.functions.balanceOf(COLLATERAL_VAULT_ADDRESS).call()
             
-            # Get the price for this specific collateral from the vault
+            # Get the price and decimals for this specific collateral from the vault's config
             collateral_config = vault_contract.functions.collateralConfigs(token_address).call()
-            # config is (enabled, price, lastPriceUpdate, maxLTV, liquidationBonus)
-            price = Decimal(collateral_config[1]) / Decimal(10**6) # Prices are stored with 6 decimals
+            # config is (enabled, price, lastPriceUpdate, maxLTV, liquidationBonus, decimals)
+            price = Decimal(collateral_config[1]) / Decimal(PRECISION) # Prices are stored with 6 decimals
+            token_decimals = collateral_config[5]
             
-            # Assuming collateral also has 6 decimals for simplicity, adjust if not
-            # A robust implementation would fetch decimals for each token
-            token_decimals = 6 
             collateral_value_usd = (Decimal(vault_token_balance) / Decimal(10**token_decimals)) * price
             total_value_locked_usd += collateral_value_usd
 
         # --- Step 3: Calculate Global Collateralization Ratio ---
-        global_collateral_ratio = "0.00"
+        global_collateral_ratio_percent = "0.00"
         if total_debt > 0:
             ratio = (total_value_locked_usd / total_debt) * 100
-            global_collateral_ratio = f"{ratio:.2f}"
+            global_collateral_ratio_percent = f"{ratio:.2f}"
 
         return {
-            "totalValueLockedUSD": str(total_value_locked_usd),
-            "totalDebt": str(total_debt),
-            "globalCollateralizationRatio": global_collateral_ratio,
+            "totalValueLockedUSD": f"{total_value_locked_usd:.2f}",
+            "totalDebt": f"{total_debt:.2f}",
+            "globalCollateralizationRatio": global_collateral_ratio_percent,
             "isPaused": status_data[4],
             "numberOfCollateralTypes": status_data[5]
         }

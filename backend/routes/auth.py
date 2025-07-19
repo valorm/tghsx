@@ -33,7 +33,8 @@ async def register_user(request: UserCreate, db: Client = Depends(get_supabase_c
         response = db.auth.sign_up({"email": request.email, "password": request.password})
         if response.user:
              # --- FIX: Return a custom JWT upon successful registration for immediate login ---
-             user_id = response.user.id
+             # This improves user experience by not requiring a separate login step after registering.
+             user_id = str(response.user.id)
              role = "admin" if user_id == ADMIN_USER_ID else "user"
              access_token = create_access_token(data={"sub": user_id, "role": role})
              return {"access_token": access_token, "token_type": "bearer"}
@@ -54,7 +55,7 @@ async def login_user(request: UserLogin, db: Client = Depends(get_supabase_clien
         response = db.auth.sign_in_with_password({"email": request.email, "password": request.password})
         
         if response.user and response.session:
-            user_id = response.user.id
+            user_id = str(response.user.id)
             
             # 2. Determine the user's role
             # This is the single source of truth for the admin role.

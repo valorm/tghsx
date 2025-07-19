@@ -1,4 +1,3 @@
-
 const { ethers } = require("hardhat");
 
 async function main() {
@@ -40,12 +39,6 @@ async function main() {
     // --- 3. BURN TOKENS ---
     console.log("\n--- Step 2: User burns tokens to repay debt ---");
     const burnAmount = ethers.utils.parseUnits("150", 6); // Repay 150 tGHSX
-
-    // The user needs to approve the vault to burn their tokens
-    // Note: This is done via burnFrom in the vault, which is a standard pattern.
-    // However, a simpler pattern is for the user to burn their own tokens and the vault to track it.
-    // For this test, we assume the user has approved the vault.
-    await tghsxToken.connect(user).approve(VAULT_ADDRESS, burnAmount);
 
     console.log(`   - Burning ${ethers.utils.formatUnits(burnAmount, 6)} tGHSX...`);
     const burnTx = await collateralVault.connect(user).burnTokens(WMATIC_ADDRESS, burnAmount);

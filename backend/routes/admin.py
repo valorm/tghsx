@@ -15,7 +15,7 @@ from utils.utils import is_admin_user, load_contract_abi
 router = APIRouter()
 
 COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
-ADMIN_PRIVATE_KEY = os.getenv("MINTER_PRIVATE_KEY") # Renamed for clarity, as this key is for admin actions
+ADMIN_PRIVATE_KEY = os.getenv("ADMIN_PRIVATE_KEY") 
 if not COLLATERAL_VAULT_ADDRESS or not ADMIN_PRIVATE_KEY:
     raise RuntimeError("Contract address or admin private key not set in environment.")
 
@@ -36,7 +36,7 @@ def send_admin_transaction(function_call):
         gas_limit = int(gas_estimate * 1.2)
     except Exception as e:
         print(f"Gas estimation failed: {e}. Falling back to a default limit.")
-        gas_limit = 200000
+        gas_limit = 300000
 
     tx_payload = {
         'from': admin_account.address,
@@ -48,10 +48,10 @@ def send_admin_transaction(function_call):
     tx = function_call.build_transaction(tx_payload)
     signed_tx = w3.eth.account.sign_transaction(tx, private_key=ADMIN_PRIVATE_KEY)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+    tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
 
     if tx_receipt['status'] == 0:
-        raise Exception("On-chain transaction failed.")
+        raise Exception("On-chain transaction failed. Check transaction receipt for details.")
     
     return tx_hash.hex()
 
@@ -67,8 +67,8 @@ async def get_contract_status():
         w3.middleware_onion.inject(geth_poa_middleware, layer=0)
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
         
-        # FIX: Call the 'getVaultStatus' function which exists in the contract.
-        # It returns (totalMinted, globalDailyMinted, globalDailyRemaining, autoMintEnabled, paused, totalCollateralTypes)
+        # --- FIX: Call the 'getVaultStatus' function which exists in the contract. ---
+        # It returns (totalMinted, dailyMinted, globalDailyRemaining, autoMintActive, contractPaused, totalCollateralTypes)
         status_data = vault_contract.functions.getVaultStatus().call()
         
         return {
@@ -108,7 +108,7 @@ async def unpause_contract():
     """
     try:
         w3 = get_web3_provider()
-        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
+        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAUT_ABI)
         
         # This function call is correct and matches the contract
         function_call = vault_contract.functions.emergencyUnpause()
