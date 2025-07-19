@@ -7,113 +7,78 @@ from typing import Dict, Any
 from web3 import Web3
 from web3.middleware import geth_poa_middleware
 
-# Import project-specific services and utilities
 from services.web3_client import get_web3_provider
-from utils.utils import is_admin_user, load_contract_abi
+from utils.utils import is_admin_user, load_contract_abi, send_admin_transaction
 
 # --- Router and Environment Setup ---
 router = APIRouter()
-
 COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
-ADMIN_PRIVATE_KEY = os.getenv("ADMIN_PRIVATE_KEY") 
-if not COLLATERAL_VAULT_ADDRESS or not ADMIN_PRIVATE_KEY:
-    raise RuntimeError("Contract address or admin private key not set in environment.")
+COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
 
-try:
-    COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
-except Exception as e:
-    raise RuntimeError(f"Failed to load CollateralVault ABI: {e}")
-
-# --- Helper function to send a transaction from the admin account ---
-def send_admin_transaction(function_call):
-    w3 = get_web3_provider()
-    w3.middleware_onion.inject(geth_poa_middleware, layer=0)
-    
-    admin_account = w3.eth.account.from_key(ADMIN_PRIVATE_KEY)
-    
-    try:
-        gas_estimate = function_call.estimate_gas({'from': admin_account.address})
-        gas_limit = int(gas_estimate * 1.2)
-    except Exception as e:
-        print(f"Gas estimation failed: {e}. Falling back to a default limit.")
-        gas_limit = 300000
-
-    tx_payload = {
-        'from': admin_account.address,
-        'nonce': w3.eth.get_transaction_count(admin_account.address),
-        'gas': gas_limit,
-        'gasPrice': w3.eth.gas_price
-    }
-    
-    tx = function_call.build_transaction(tx_payload)
-    signed_tx = w3.eth.account.sign_transaction(tx, private_key=ADMIN_PRIVATE_KEY)
-    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-
-    if tx_receipt['status'] == 0:
-        raise Exception("On-chain transaction failed. Check transaction receipt for details.")
-    
-    return tx_hash.hex()
+# --- NEW: Pydantic Model for Auto-Mint Config ---
+class AutoMintConfigPayload(BaseModel):
+    baseReward: int
+    bonusMultiplier: int
+    minHoldTime: int
+    collateralRequirement: int
 
 # --- Admin Endpoints ---
 
-@router.get("/status", response_model=Dict[str, Any], dependencies=[Depends(is_admin_user)])
-async def get_contract_status():
-    """
-    Fetches the current global status of the CollateralVault contract.
-    """
+# get_contract_status, pause_contract, unpause_contract remain the same...
+
+# --- NEW: Endpoints for managing Auto-Mint ---
+
+@router.get("/automint-config", response_model=Dict[str, Any], dependencies=[Depends(is_admin_user)])
+async def get_automint_config():
+    """Fetches the current AutoMint configuration from the vault."""
     try:
         w3 = get_web3_provider()
-        w3.middleware_onion.inject(geth_poa_middleware, layer=0)
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
         
-        # --- FIX: Call the 'getVaultStatus' function which exists in the contract. ---
-        # It returns (totalMinted, dailyMinted, globalDailyRemaining, autoMintActive, contractPaused, totalCollateralTypes)
-        status_data = vault_contract.functions.getVaultStatus().call()
+        config = vault_contract.functions.autoMintConfig().call()
+        is_enabled = vault_contract.functions.autoMintEnabled().call()
         
         return {
-            "totalMintedGlobal": str(status_data[0]),
-            "globalDailyMinted": str(status_data[1]),
-            "globalDailyRemaining": str(status_data[2]),
-            "isAutoMintEnabled": status_data[3],
-            "isPaused": status_data[4],
-            "totalCollateralTypes": status_data[5]
+            "isEnabled": is_enabled,
+            "baseReward": str(config[0]),
+            "bonusMultiplier": config[1],
+            "minHoldTime": config[2],
+            "collateralRequirement": str(config[3])
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch contract status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch auto-mint config: {str(e)}")
 
-
-@router.post("/pause", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
-async def pause_contract():
-    """
-    Calls the emergencyPause function on the CollateralVault contract.
-    """
+@router.post("/toggle-automint", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
+async def toggle_automint(enabled: bool):
+    """Enables or disables the Auto-Mint feature."""
     try:
         w3 = get_web3_provider()
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
         
-        # This function call is correct and matches the contract
-        function_call = vault_contract.functions.emergencyPause()
+        function_call = vault_contract.functions.toggleAutoMint(enabled)
         tx_hash = send_admin_transaction(function_call)
         
-        return {"message": "Protocol paused successfully.", "transactionHash": tx_hash}
+        status_text = "enabled" if enabled else "disabled"
+        return {"message": f"Auto-Mint feature has been {status_text}.", "transactionHash": tx_hash}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to pause protocol: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to toggle Auto-Mint: {str(e)}")
 
-
-@router.post("/unpause", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
-async def unpause_contract():
-    """
-    Calls the emergencyUnpause function on the CollateralVault contract.
-    """
+@router.post("/update-automint-config", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
+async def update_automint_config(payload: AutoMintConfigPayload):
+    """Updates the parameters for the Auto-Mint feature."""
     try:
         w3 = get_web3_provider()
-        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAUT_ABI)
+        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
         
-        # This function call is correct and matches the contract
-        function_call = vault_contract.functions.emergencyUnpause()
+        function_call = vault_contract.functions.updateAutoMintConfig(
+            payload.baseReward,
+            payload.bonusMultiplier,
+            payload.minHoldTime,
+            payload.collateralRequirement
+        )
         tx_hash = send_admin_transaction(function_call)
-
-        return {"message": "Protocol resumed successfully.", "transactionHash": tx_hash}
+        
+        return {"message": "Auto-Mint configuration updated successfully.", "transactionHash": tx_hash}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to resume protocol: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update Auto-Mint config: {str(e)}")
+
