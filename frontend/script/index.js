@@ -3,8 +3,7 @@
  * Main dApp Logic (index.js)
  *
  * This script handles all core functionalities of the tGHSX minting and vault
- * management page. It is updated to match the latest multi-collateral contract
- * and the secure, two-step backend minting approval process.
+ * management page, including the multi-collateral system and the auto-mint feature.
  * ==================================================================================
  */
 
@@ -12,10 +11,9 @@ import { appState, showToast, getErrorMessage, BACKEND_URL, formatAddress } from
 
 // --- State ---
 let localState = {
-    minCollateralRatio: 1.5, // Default, will be fetched from contract
+    minCollateralRatio: 1.5,
     selectedCollateral: { address: '', symbol: '', decimals: 18 },
-    isPolling: false,
-    pollingIntervalId: null,
+    cooldownIntervalId: null,
 };
 
 // --- Element Cache ---
@@ -27,6 +25,7 @@ const elements = {
     withdrawInput: document.getElementById('withdrawInput'),
     depositBtn: document.getElementById('depositBtn'),
     mintBtn: document.getElementById('mintBtn'),
+    autoMintBtn: document.getElementById('autoMintBtn'),
     burnBtn: document.getElementById('burnBtn'),
     withdrawBtn: document.getElementById('withdrawBtn'),
     vaultCollateral: document.getElementById('vaultCollateral'),
@@ -35,6 +34,8 @@ const elements = {
     vaultHealthBadge: document.getElementById('vaultHealthBadge'),
     userBalance: document.getElementById('userBalance'),
     mintRequestsList: document.getElementById('mintRequestsList'),
+    cooldownStatusText: document.getElementById('cooldownStatusText'),
+    cooldownTimerText: document.getElementById('cooldownTimerText'),
 };
 
 // --- Initialization ---
@@ -64,9 +65,9 @@ function setupEventListeners() {
     elements.collateralSelector.addEventListener('change', handleCollateralChange);
     elements.depositBtn.addEventListener('click', () => handleTransaction('deposit'));
     elements.mintBtn.addEventListener('click', () => handleTransaction('requestMint'));
+    elements.autoMintBtn.addEventListener('click', () => handleTransaction('autoMint'));
     elements.burnBtn.addEventListener('click', () => handleTransaction('burn'));
     elements.withdrawBtn.addEventListener('click', () => handleTransaction('withdraw'));
-    // Listener for executing an approved mint request
     elements.mintRequestsList.addEventListener('click', (e) => {
         if (e.target.classList.contains('execute-mint-btn')) {
             const { collateralAddress, mintAmount } = e.target.dataset;
@@ -83,7 +84,8 @@ async function refreshAllData() {
     await Promise.allSettled([
         loadUserVaultData(),
         loadUserBalance(),
-        fetchPendingMintRequests(), // Fetch user's pending/approved requests
+        fetchPendingMintRequests(),
+        fetchUserMintStatus(),
     ]);
 }
 
@@ -108,7 +110,6 @@ async function populateCollateralSelector() {
         selector.appendChild(option);
     });
 
-    // Trigger change to load data for the default selected collateral
     selector.dispatchEvent(new Event('change'));
 }
 
@@ -123,8 +124,9 @@ async function handleCollateralChange(event) {
 }
 
 async function fetchConstantData() {
+    if (!appState.collateralVaultContract) return;
     const ratio = await appState.collateralVaultContract.MIN_COLLATERAL_RATIO();
-    localState.minCollateralRatio = parseFloat(ethers.utils.formatUnits(ratio, 6)); // Precision is 10^6
+    localState.minCollateralRatio = parseFloat(ethers.utils.formatUnits(ratio, 6));
 }
 
 async function loadUserVaultData() {
@@ -134,7 +136,7 @@ async function loadUserVaultData() {
     );
 
     const collateralAmount = ethers.utils.formatUnits(position.collateralAmount, localState.selectedCollateral.decimals);
-    const mintedAmount = ethers.utils.formatUnits(position.mintedAmount, 6); // tGHSX has 6 decimals
+    const mintedAmount = ethers.utils.formatUnits(position.mintedAmount, 6);
     const collateralRatio = parseFloat(ethers.utils.formatUnits(position.collateralRatio, 6)) * 100;
 
     elements.vaultCollateral.textContent = `${parseFloat(collateralAmount).toFixed(4)} ${localState.selectedCollateral.symbol}`;
@@ -148,6 +150,26 @@ async function loadUserBalance() {
     const balance = await tokenContract.balanceOf(appState.userAccount);
     const formattedBalance = ethers.utils.formatUnits(balance, localState.selectedCollateral.decimals);
     elements.userBalance.textContent = `Balance: ${parseFloat(formattedBalance).toFixed(4)} ${localState.selectedCollateral.symbol}`;
+}
+
+async function fetchUserMintStatus() {
+    if (!appState.userAccount) return;
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/vault/mint-status`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Could not fetch mint status.');
+        
+        const status = await response.json();
+        updateCooldownUI(status.cooldownRemaining);
+
+    } catch (error) {
+        console.warn(error.message);
+        updateCooldownUI(-1);
+    }
 }
 
 // --- Transaction Logic ---
@@ -173,12 +195,17 @@ async function handleTransaction(type, params = {}) {
                 amount = elements.mintInput.value;
                 if (!amount || parseFloat(amount) <= 0) throw new Error("Invalid mint amount.");
                 await submitMintRequest(localState.selectedCollateral.address, amount);
-                return; // This is an off-chain action, so we exit here.
+                return;
 
             case 'executeMint':
                 if (!collateralAddress || !mintAmount) throw new Error("Missing parameters for mint execution.");
                 txFunction = appState.collateralVaultContract.mintTokens;
                 args = [collateralAddress, ethers.utils.parseUnits(mintAmount, 6)];
+                break;
+
+            case 'autoMint':
+                txFunction = appState.collateralVaultContract.autoMint;
+                args = [localState.selectedCollateral.address];
                 break;
 
             case 'burn':
@@ -212,7 +239,7 @@ async function handleTransaction(type, params = {}) {
 
 async function approveToken(tokenAddress, amount) {
     const tokenContract = new ethers.Contract(tokenAddress, appState.abis.erc20, appState.signer);
-    const tokenInfo = appState.supportedCollaterals.find(t => t.address === tokenAddress) || { decimals: 6 }; // Default to 6 for tGHSX
+    const tokenInfo = appState.supportedCollaterals.find(t => t.address.toLowerCase() === tokenAddress.toLowerCase()) || { decimals: 6 };
     const amountWei = ethers.utils.parseUnits(amount, tokenInfo.decimals);
     
     const allowance = await tokenContract.allowance(appState.userAccount, appState.collateralVaultContract.address);
@@ -224,7 +251,7 @@ async function approveToken(tokenAddress, amount) {
     }
 }
 
-// --- NEW: Refactored Minting Flow ---
+// --- Minting Flow ---
 
 async function submitMintRequest(collateralAddress, mintAmount) {
     const token = localStorage.getItem('accessToken');
@@ -245,7 +272,7 @@ async function submitMintRequest(collateralAddress, mintAmount) {
         if (!response.ok) throw new Error(data.detail);
         
         showToast('Request submitted! It will appear below once approved.', 'success');
-        elements.mintInput.value = ''; // Clear input on success
+        elements.mintInput.value = '';
         await refreshAllData();
 
     } catch (error) {
@@ -258,12 +285,10 @@ async function fetchPendingMintRequests() {
     if (!token) return;
 
     try {
-        // This endpoint needs to exist on the backend, returning requests for the current user.
-        // Let's assume a new endpoint: /mint/my-requests
         const response = await fetch(`${BACKEND_URL}/mint/my-requests`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (!response.ok) return; // Fail silently if endpoint doesn't exist yet
+        if (!response.ok) return;
         
         const requests = await response.json();
         renderMintRequests(requests);
@@ -299,6 +324,38 @@ function renderMintRequests(requests) {
 
 // --- UI Helpers ---
 
+function updateCooldownUI(cooldownSeconds) {
+    if (localState.cooldownIntervalId) clearInterval(localState.cooldownIntervalId);
+
+    if (cooldownSeconds < 0) {
+        elements.cooldownStatusText.textContent = 'Unavailable';
+        elements.cooldownTimerText.textContent = 'Error';
+        elements.autoMintBtn.disabled = true;
+        return;
+    }
+
+    let remaining = cooldownSeconds;
+
+    const updateTimer = () => {
+        if (remaining <= 0) {
+            clearInterval(localState.cooldownIntervalId);
+            elements.cooldownStatusText.textContent = 'Ready to Claim';
+            elements.cooldownTimerText.textContent = '00:00';
+            elements.autoMintBtn.disabled = false;
+        } else {
+            elements.cooldownStatusText.textContent = 'On Cooldown';
+            const minutes = Math.floor(remaining / 60).toString().padStart(2, '0');
+            const seconds = (remaining % 60).toString().padStart(2, '0');
+            elements.cooldownTimerText.textContent = `${minutes}:${seconds}`;
+            elements.autoMintBtn.disabled = true;
+            remaining--;
+        }
+    };
+
+    updateTimer();
+    localState.cooldownIntervalId = setInterval(updateTimer, 1000);
+}
+
 function updateHealthBadge(ratio) {
     const badge = elements.vaultHealthBadge;
     badge.className = 'collateral-ratio-badge';
@@ -326,6 +383,7 @@ function resetUI() {
     if(elements.vaultDebt) elements.vaultDebt.textContent = '0.00';
     if(elements.vaultRatio) elements.vaultRatio.textContent = '--%';
     if(elements.userBalance) elements.userBalance.textContent = 'Balance: 0.00';
-    if(elements.mintRequestsList) elements.mintRequestsList.innerHTML = '';
+    if(elements.mintRequestsList) elements.mintRequestsList.innerHTML = '<li class="no-requests">Connect wallet to see requests.</li>';
     updateHealthBadge(Infinity);
+    updateCooldownUI(-1);
 }

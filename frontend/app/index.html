@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- REMOVED: Restrictive Content-Security-Policy to prevent wallet connection issues -->
     <title>tGHSX - Ghana Stablecoin</title>
     
     <link rel="icon" href="../favicon.png" type="image/png">
@@ -73,7 +72,7 @@
                         </div>
                     </div>
 
-                    <!-- NEW: Mint Requests Card -->
+                    <!-- Mint Requests Card -->
                     <div class="card mint-requests-card">
                         <div class="card-header">
                             <h2 class="card-title"><i class="fas fa-hourglass-half"></i> Your Mint Requests</h2>
@@ -92,6 +91,7 @@
                         <div class="tabs">
                             <button class="tab-link active" onclick="openTab(event, 'Deposit')">Deposit</button>
                             <button class="tab-link" onclick="openTab(event, 'Mint')">Mint</button>
+                            <button class="tab-link" onclick="openTab(event, 'AutoMint')">Claim Reward</button>
                             <button class="tab-link" onclick="openTab(event, 'Burn')">Burn (Repay)</button>
                             <button class="tab-link" onclick="openTab(event, 'Withdraw')">Withdraw</button>
                         </div>
@@ -119,6 +119,23 @@
                                 <input type="number" id="mintInput" class="input-field" placeholder="0.00">
                             </div>
                             <button id="mintBtn" class="action-btn"><i class="fas fa-paper-plane"></i> Submit Mint Request</button>
+                        </div>
+
+                        <!-- Auto-Mint Tab -->
+                        <div id="AutoMint" class="tab-content">
+                            <h3>Claim tGHSX Reward</h3>
+                            <p>Periodically claim a tGHSX reward. Your collateral ratio must be healthy, and a cooldown period applies between claims.</p>
+                            <div class="auto-mint-status">
+                                <div id="autoMintStatus" class="status-box">
+                                    <span class="status-label">Status:</span>
+                                    <span id="cooldownStatusText" class="status-value">Loading...</span>
+                                </div>
+                                <div id="autoMintTimer" class="status-box">
+                                    <span class="status-label">Cooldown:</span>
+                                    <span id="cooldownTimerText" class="status-value">--:--</span>
+                                </div>
+                            </div>
+                            <button id="autoMintBtn" class="action-btn" disabled><i class="fas fa-gift"></i> Claim Reward</button>
                         </div>
 
                         <!-- Burn Tab -->
