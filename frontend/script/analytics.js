@@ -17,11 +17,13 @@ function formatCurrency(value, currency = '$') {
 }
 
 async function fetchAnalyticsData() {
+    const loadingElements = document.querySelectorAll('.stat-value');
+    loadingElements.forEach(el => el.textContent = 'Loading...');
+
     try {
         const token = localStorage.getItem('accessToken');
         if (!token) {
-            document.getElementById('tvlValue').textContent = 'Please log in';
-            return;
+            throw new Error('Please log in to view analytics.');
         }
 
         const response = await fetch(`${BACKEND_URL}/protocol/health`, {
@@ -37,11 +39,12 @@ async function fetchAnalyticsData() {
         
         // FIX: Use the new data keys from the updated backend response
         document.getElementById('tvlValue').textContent = formatCurrency(data.totalValueLockedUSD, '$');
-        document.getElementById('totalDebt').textContent = formatCurrency(data.totalDebt, ''); // It's in tGHSX, no currency symbol
+        document.getElementById('totalDebt').textContent = `${formatCurrency(data.totalDebt, '')} tGHSX`;
         document.getElementById('collateralTypes').textContent = data.numberOfCollateralTypes;
         document.getElementById('globalRatio').textContent = `${parseFloat(data.globalCollateralizationRatio).toFixed(2)}%`;
 
         // Mock data for charts, as backend doesn't provide historical data yet
+        // In a real app, this data would come from another API endpoint.
         const labels = ['6 days ago', '5 days ago', '4 days ago', '3 days ago', '2 days ago', 'Yesterday', 'Today'];
         const tvlHistory = [10000, 25000, 40000, 30000, 55000, 70000, parseFloat(data.totalValueLockedUSD)];
         const debtHistory = [5000, 12000, 20000, 15000, 28000, 35000, parseFloat(data.totalDebt)];
@@ -51,15 +54,16 @@ async function fetchAnalyticsData() {
 
     } catch (error) {
         console.error('Error fetching analytics:', error);
-        document.getElementById('tvlValue').textContent = 'Error';
-        document.getElementById('totalDebt').textContent = 'Error';
-        document.getElementById('collateralTypes').textContent = 'Error';
-        document.getElementById('globalRatio').textContent = 'Error';
+        loadingElements.forEach(el => el.textContent = 'Error');
+        showToast(error.message, 'error');
     }
 }
 
 function renderChart(canvasId, label, labels, data, color) {
-    const ctx = document.getElementById(canvasId).getContext('2d');
+    const ctx = document.getElementById(canvasId)?.getContext('2d');
+    if (!ctx) return;
+
+    // Destroy previous chart instance if it exists
     if (window.chartInstances && window.chartInstances[canvasId]) {
         window.chartInstances[canvasId].destroy();
     }
@@ -75,16 +79,35 @@ function renderChart(canvasId, label, labels, data, color) {
                 backgroundColor: `${color}33`,
                 fill: true,
                 tension: 0.4,
+                pointBackgroundColor: color,
+                pointRadius: 4,
+                pointHoverRadius: 6,
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true, ticks: { color: 'var(--text-secondary)' }, grid: { color: 'var(--border-color)' } },
-                x: { ticks: { color: 'var(--text-secondary)' }, grid: { display: false } }
+                y: { 
+                    beginAtZero: true, 
+                    ticks: { color: 'var(--text-secondary)' }, 
+                    grid: { color: 'var(--border-color)' } 
+                },
+                x: { 
+                    ticks: { color: 'var(--text-secondary)' }, 
+                    grid: { display: false } 
+                }
             },
-            plugins: { legend: { display: false } }
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    titleFont: { size: 14 },
+                    bodyFont: { size: 12 },
+                    padding: 10,
+                    cornerRadius: 4,
+                }
+            }
         }
     });
 
@@ -92,4 +115,12 @@ function renderChart(canvasId, label, labels, data, color) {
     window.chartInstances[canvasId] = chart;
 }
 
-document.addEventListener('DOMContentLoaded', fetchAnalyticsData);
+// Ensure shared-wallet logic has run and established a connection before fetching
+document.addEventListener('networkConnected', fetchAnalyticsData);
+
+// Also fetch if the page is loaded and already connected
+document.addEventListener('DOMContentLoaded', () => {
+    if (appState.isCorrectNetwork) {
+        fetchAnalyticsData();
+    }
+});

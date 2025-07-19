@@ -3,7 +3,7 @@
  * Liquidations Page Logic (liquidations.js)
  *
  * Fetches and displays vaults eligible for liquidation and allows users to
- * initiate liquidation transactions. Updated for the latest contract functions.
+ * initiate liquidation transactions. Updated for the multi-collateral contract.
  * ==================================================================================
  */
 
@@ -36,13 +36,13 @@ async function fetchAndRenderRiskyVaults() {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        if (!response.ok) throw new Error('Failed to fetch at-risk vaults.');
+        if (!response.ok) throw new Error((await response.json()).detail || 'Failed to fetch at-risk vaults.');
         
         const vaults = await response.json();
         if (vaults.length === 0) {
             elements.emptyState.classList.remove('hidden');
         } else {
-            renderVaults(vaults);
+            await renderVaults(vaults);
         }
 
     } catch (error) {
@@ -53,43 +53,50 @@ async function fetchAndRenderRiskyVaults() {
     }
 }
 
-function renderVaults(vaults) {
-    vaults.forEach(vault => {
-        const row = elements.tableBody.insertRow();
-        
-        // FIX: The backend now returns amounts in wei, format them correctly.
-        // Assuming collateral and tGHSX decimals for formatting. This should be dynamic in a full implementation.
-        const collateralAmount = ethers.utils.formatUnits(vault.collateral_amount, 18); // Assuming 18 decimals for collateral
-        const debtAmount = ethers.utils.formatUnits(vault.minted_amount, 6); // tGHSX has 6 decimals
-        const ratio = parseFloat(ethers.utils.formatUnits(vault.collateralization_ratio, 6)) * 100;
+async function renderVaults(vaults) {
+    let html = '';
+    for (const vault of vaults) {
+        // FIX: Look up collateral info from appState to get symbol and decimals
+        const collateralInfo = appState.supportedCollaterals.find(c => c.address.toLowerCase() === vault.collateral_address.toLowerCase());
+        const symbol = collateralInfo ? collateralInfo.symbol : 'UNKNOWN';
+        const collateralDecimals = collateralInfo ? collateralInfo.decimals : 18;
 
-        row.innerHTML = `
-            <td data-label="Vault Owner"><a href="https://amoy.polygonscan.com/address/${vault.wallet_address}" target="_blank" class="address-link">${formatAddress(vault.wallet_address)}</a></td>
-            <td data-label="Collateral">${parseFloat(collateralAmount).toFixed(4)}</td>
-            <td data-label="Debt">${parseFloat(debtAmount).toFixed(2)} tGHSX</td>
-            <td data-label="Collateral Ratio"><span class="ratio-danger">${ratio.toFixed(2)}%</span></td>
-            <td data-label="Action">
-                <button class="liquidate-btn" 
-                    data-user="${vault.wallet_address}" 
-                    data-debt="${vault.minted_amount}" 
-                    data-collateral-token="${vault.collateral_type}">
-                    Liquidate
-                </button>
-            </td>
+        // FIX: Format amounts correctly using their specific decimals
+        const collateralAmount = ethers.utils.formatUnits(vault.collateral_amount, collateralDecimals);
+        const debtAmount = ethers.utils.formatUnits(vault.minted_amount, 6); // tGHSX has 6 decimals
+        const ratio = parseFloat(vault.collateralization_ratio); // Backend now sends formatted ratio
+
+        html += `
+            <tr>
+                <td data-label="Vault Owner"><a href="https://amoy.polygonscan.com/address/${vault.wallet_address}" target="_blank" class="address-link">${formatAddress(vault.wallet_address)}</a></td>
+                <td data-label="Collateral">${parseFloat(collateralAmount).toFixed(4)} ${symbol}</td>
+                <td data-label="Debt">${parseFloat(debtAmount).toFixed(2)} tGHSX</td>
+                <td data-label="Collateral Ratio"><span class="ratio-danger">${ratio.toFixed(2)}%</span></td>
+                <td data-label="Action">
+                    <button class="liquidate-btn" 
+                        data-user="${vault.wallet_address}" 
+                        data-debt="${vault.minted_amount}" 
+                        data-collateral-address="${vault.collateral_address}">
+                        Liquidate
+                    </button>
+                </td>
+            </tr>
         `;
-    });
+    }
+    elements.tableBody.innerHTML = html;
 }
 
 async function showLiquidationModal(target) {
-    const { user, debt, collateralToken } = target;
+    const { user, debt, collateralAddress } = target;
     currentLiquidationTarget = target;
 
-    // Logic to calculate what the liquidator repays and receives
-    const tghsxToRepay = ethers.BigNumber.from(debt); // Liquidator repays the full debt
+    const tghsxToRepay = ethers.BigNumber.from(debt);
     
     elements.modalVaultOwner.textContent = formatAddress(user);
     elements.modalRepayAmount.textContent = `${parseFloat(ethers.utils.formatUnits(tghsxToRepay, 6)).toFixed(2)} tGHSX`;
-    elements.modalReceiveCollateral.textContent = `All Collateral + Bonus`; // The contract handles the calculation
+    
+    const collateralInfo = appState.supportedCollaterals.find(c => c.address.toLowerCase() === collateralAddress.toLowerCase());
+    elements.modalReceiveCollateral.textContent = `All of their ${collateralInfo ? collateralInfo.symbol : 'Collateral'}`;
 
     elements.modal.classList.add('show');
 }
@@ -102,7 +109,8 @@ function hideLiquidationModal() {
 async function executeLiquidation() {
     if (!currentLiquidationTarget) return;
 
-    const { user: userToLiquidate, debt: debtToRepay, collateralToken } = currentLiquidationTarget;
+    // FIX: Use the correct dataset property name 'collateralAddress'
+    const { user: userToLiquidate, debt: debtToRepay, collateralAddress } = currentLiquidationTarget;
     const button = document.querySelector(`button[data-user="${userToLiquidate}"]`);
     
     hideLiquidationModal();
@@ -122,10 +130,10 @@ async function executeLiquidation() {
             showToast('Approval successful.', 'success');
         }
 
-        // 2. Call the liquidate function
-        // FIX: Use the correct `liquidate` function signature from the contract
+        // 2. Call the liquidate function with the correct arguments
+        // FIX: The function signature is `liquidate(address user, address collateral)`
         showToast('Sending liquidation transaction...', 'info');
-        const liquidateTx = await appState.collateralVaultContract.liquidate(userToLiquidate, collateralToken);
+        const liquidateTx = await appState.collateralVaultContract.liquidate(userToLiquidate, collateralAddress);
         await liquidateTx.wait();
 
         showToast('Liquidation successful!', 'success');

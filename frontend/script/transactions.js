@@ -3,7 +3,7 @@
  * Transaction History Page Logic (transactions.js)
  *
  * Fetches and displays user transaction history with server-side pagination.
- * Updated to correctly parse event data from the new contract events.
+ * Updated to correctly parse event data from the new multi-collateral contract events.
  * ==================================================================================
  */
 
@@ -26,7 +26,6 @@ const elements = {
     prevPageBtn: document.getElementById('prevPageBtn'),
     nextPageBtn: document.getElementById('nextPageBtn'),
     typeFilter: document.getElementById('typeFilter'),
-    exportBtn: document.getElementById('exportBtn'),
 };
 
 async function fetchTransactions(page = 1) {
@@ -52,13 +51,13 @@ async function fetchTransactions(page = 1) {
         }
 
         const data = await response.json();
-        pageState.transactions = (data.transactions || []).map(tx => formatTransaction(tx));
+        pageState.transactions = data.transactions.map(tx => formatTransaction(tx));
         pageState.totalRecords = data.total || 0;
-        pageState.totalPages = Math.ceil(pageState.totalRecords / recordsPerPage);
+        pageState.totalPages = Math.ceil(pageState.totalRecords / recordsPerPage) || 1;
         pageState.currentPage = page;
 
     } catch (error) {
-        console.error('Error fetching transactions:', error);
+        showToast(error.message, 'error');
     } finally {
         pageState.isLoading = false;
         updateView();
@@ -77,7 +76,7 @@ function renderLoadingSkeleton() {
 }
 
 function renderEmptyState() {
-    elements.tableBody.innerHTML = `<tr><td colspan="5" class="empty-state">No transactions found.</td></tr>`;
+    elements.tableBody.innerHTML = `<tr><td colspan="5" class="empty-state">No transactions found for this filter.</td></tr>`;
 }
 
 function renderTablePage() {
@@ -93,7 +92,7 @@ function renderTablePage() {
 }
 
 function updatePaginationUI() {
-    elements.pageInfo.textContent = `Page ${pageState.currentPage} of ${pageState.totalPages || 1}`;
+    elements.pageInfo.textContent = `Page ${pageState.currentPage} of ${pageState.totalPages}`;
     elements.recordCount.textContent = `Total ${pageState.totalRecords} records`;
     elements.prevPageBtn.disabled = pageState.currentPage === 1;
     elements.nextPageBtn.disabled = pageState.currentPage >= pageState.totalPages;
@@ -103,43 +102,51 @@ function formatTransaction(tx) {
     const eventData = JSON.parse(tx.event_data);
     let details = '', amount = '', amountClass = '', method = tx.event_name, badgeClass = '';
 
-    // FIX: Correctly parse event data based on the new contract events
+    // FIX: Correctly parse event data based on the new multi-collateral contract events
+    const collateralInfo = appState.supportedCollaterals.find(c => c.address.toLowerCase() === eventData.collateral?.toLowerCase());
+    const symbol = collateralInfo ? collateralInfo.symbol : 'TOKEN';
+    const collateralDecimals = collateralInfo ? collateralInfo.decimals : 18;
+
     switch(tx.event_name) {
         case 'CollateralDeposited':
             method = 'Deposit';
             badgeClass = 'deposit';
-            amount = `+ ${ethers.utils.formatUnits(eventData.amount, 18).substring(0, 8)}...`; // Assuming 18 decimals for collateral
+            amount = `+ ${parseFloat(ethers.utils.formatUnits(eventData.amount, collateralDecimals)).toFixed(4)} ${symbol}`;
             amountClass = 'amount-positive';
-            details = `Collateral: ${formatAddress(eventData.collateral)}`;
+            details = `Deposited ${symbol}`;
             break;
         case 'CollateralWithdrawn':
             method = 'Withdraw';
             badgeClass = 'withdraw';
-            amount = `- ${ethers.utils.formatUnits(eventData.amount, 18).substring(0, 8)}...`;
+            amount = `- ${parseFloat(ethers.utils.formatUnits(eventData.amount, collateralDecimals)).toFixed(4)} ${symbol}`;
             amountClass = 'amount-negative';
-            details = `Collateral: ${formatAddress(eventData.collateral)}`;
+            details = `Withdrew ${symbol}`;
             break;
         case 'TokensMinted':
             method = 'Mint';
             badgeClass = 'mint';
-            amount = `+ ${ethers.utils.formatUnits(eventData.amount, 6)} tGHSX`;
+            amount = `+ ${parseFloat(ethers.utils.formatUnits(eventData.amount, 6)).toFixed(2)} tGHSX`;
             amountClass = 'amount-positive';
-            details = `Against: ${formatAddress(eventData.collateral)}`;
+            details = `Against ${symbol} collateral`;
             break;
         case 'TokensBurned':
             method = 'Burn (Repay)';
             badgeClass = 'repay';
-            amount = `- ${ethers.utils.formatUnits(eventData.amount, 6)} tGHSX`;
+            amount = `- ${parseFloat(ethers.utils.formatUnits(eventData.amount, 6)).toFixed(2)} tGHSX`;
             amountClass = 'amount-negative';
-            details = `For: ${formatAddress(eventData.collateral)}`;
+            details = `For ${symbol} position`;
             break;
         case 'PositionLiquidated':
             method = 'Liquidation';
             badgeClass = 'liquidate';
-            amount = `- ${ethers.utils.formatUnits(eventData.debtAmount, 6)} tGHSX`;
+            amount = `- ${parseFloat(ethers.utils.formatUnits(eventData.debtAmount, 6)).toFixed(2)} tGHSX`;
             amountClass = 'amount-negative';
-            details = `Liquidated: ${formatAddress(eventData.user)}`;
+            details = `Liquidated position of ${formatAddress(eventData.user)}`;
             break;
+        default:
+            method = tx.event_name;
+            details = 'N/A';
+            amount = 'N/A';
     }
 
     return {
