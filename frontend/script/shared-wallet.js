@@ -20,7 +20,7 @@ const REQUIRED_CHAIN_ID = 80002;
 export const BACKEND_URL = 'https://tghsx.onrender.com';
 
 // --- FIX: Updated Contract Addresses and ABIs ---
-const COLLATERAL_VAULT_ADDRESS = "0x43842184d249247fA2393865942445163478294A"; // Correct address for the multi-collateral vault
+const COLLATERAL_VAULT_ADDRESS = "0xF681Ba510d3C93A49a7AB2d02d9697BB2B0091FE";
 const COLLATERAL_VAULT_ABI_PATH = './abi/CollateralVault.json'; // Path to the full ABI file
 const ERC20_ABI_PATH = './abi/ERC20.json'; // Path to a standard ERC20 ABI
 
