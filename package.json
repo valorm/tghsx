@@ -8,7 +8,8 @@
     "dotenv": "^17.2.0",
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.8.0",
-    "hardhat": "^2.25.0",
+    "hardhat": "^2.26.0",
+    "hardhat-gas-reporter": "^2.3.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },

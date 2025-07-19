@@ -1,4 +1,4 @@
-// scripts/deploy.js
+// scripts/deployamoy.js
 const { ethers } = require("hardhat");
 const { verify } = require("../utils/verify");
 const fs = require('fs');
@@ -8,7 +8,7 @@ async function main() {
 
     const [deployer] = await ethers.getSigners();
     const network = await ethers.provider.getNetwork();
-    const networkName = network.name === "amoy" ? "polygonAmoy" : "unknown";
+    const networkName = network.name === "amoy" ? "polygonAmoy" : "amoy";
 
     console.log("📝 Deploying contracts with account:", deployer.address);
     console.log("💰 Account balance:", ethers.utils.formatEther(await deployer.getBalance()), "ETH");
@@ -18,8 +18,19 @@ async function main() {
         confirmations: 3
     };
 
+    // --- USE PREVIOUSLY DEPLOYED MOCK TOKENS ---
+    console.log("💎 Using previously deployed mock ERC20 token addresses...");
+    const mockTokens = {
+        USDC: "0xAC2f1680f2705d3Dd314534Bf24b424ccBC8D8f5",
+        WETH: "0xF5FcbF9D665DC89b2d18f87a6994F04849dC80E5",
+        WBTC: "0x6F74072d5AF1132B13c5a7226E41aAC1f8DBBdae",
+        WMATIC: "0x13c09eAa18d75947A5426CaeDdEb65922400028c"
+    };
+    console.log(mockTokens);
+    // -------------------------------------------------
+
     // --- 1. DEPLOY TGHSX TOKEN ---
-    console.log("📄 1. Deploying TGHSXToken...");
+    console.log("\n📄 1. Deploying TGHSXToken...");
     const TGHSXToken = await ethers.getContractFactory("TGHSXToken");
     const tghsxToken = await TGHSXToken.deploy();
     await tghsxToken.deployTransaction.wait(AMOY_CONFIG.confirmations);
@@ -32,34 +43,14 @@ async function main() {
     await collateralVault.deployTransaction.wait(AMOY_CONFIG.confirmations);
     console.log("✅ CollateralVault deployed to:", collateralVault.address);
 
-    // --- 3. DEPLOY MOCK ERC20 COLLATERAL TOKENS ---
-    console.log("\n💎 3. Deploying mock ERC20 tokens for testing...");
-    const MockERC20 = await ethers.getContractFactory("MockERC20");
-    const mockTokens = {};
-    const tokenConfigs = [
-        { name: "Mock USDC", symbol: "USDC", decimals: 6, supply: ethers.utils.parseUnits("1000000", 6) },
-        { name: "Mock WETH", symbol: "WETH", decimals: 18, supply: ethers.utils.parseUnits("1000", 18) },
-        { name: "Mock WBTC", symbol: "WBTC", decimals: 8, supply: ethers.utils.parseUnits("100", 8) },
-        { name: "Mock WMATIC", symbol: "WMATIC", decimals: 18, supply: ethers.utils.parseUnits("5000000", 18) }
-    ];
-
-    for (const config of tokenConfigs) {
-        console.log(`  > Deploying ${config.name} (${config.symbol})...`);
-        const token = await MockERC20.deploy(config.name, config.symbol, config.decimals, config.supply);
-        await token.deployTransaction.wait(AMOY_CONFIG.confirmations);
-        mockTokens[config.symbol] = token.address;
-        console.log(`  ✅ ${config.symbol} deployed to:`, token.address);
-    }
-
-    // --- 4. CONFIGURE ROLES AND VAULT ---
-    console.log("\n⚙️ 4. Configuring contracts...");
+    // --- 3. CONFIGURE ROLES AND VAULT ---
+    console.log("\n⚙️ 3. Configuring contracts...");
     console.log("  > Granting MINTER_BURNER_ROLE to CollateralVault...");
     const MINTER_BURNER_ROLE = await tghsxToken.MINTER_BURNER_ROLE();
     await (await tghsxToken.grantRole(MINTER_BURNER_ROLE, collateralVault.address)).wait(AMOY_CONFIG.confirmations);
     console.log("  ✅ Role granted.");
 
     console.log("  > Adding collateral types to Vault...");
-    // CORRECTED: Added 'decimals' property to each collateral object
     const collateralData = [
         { symbol: "USDC", token: mockTokens.USDC, decimals: 6, price: ethers.utils.parseUnits("1", 6), maxLTV: 8500, liquidationBonus: 500 },
         { symbol: "WETH", token: mockTokens.WETH, decimals: 18, price: ethers.utils.parseUnits("3000", 6), maxLTV: 8000, liquidationBonus: 1000 },
@@ -69,30 +60,25 @@ async function main() {
 
     for (const collateral of collateralData) {
         console.log(`    - Adding ${collateral.symbol}...`);
-        // CORRECTED: Pass the collateral's decimals as the fifth argument
         await (await collateralVault.addCollateral(
             collateral.token,
             collateral.price,
             collateral.maxLTV,
             collateral.liquidationBonus,
-            collateral.decimals // <-- Pass decimals to the function
+            collateral.decimals
         )).wait(AMOY_CONFIG.confirmations);
         console.log(`    ✅ ${collateral.symbol} added.`);
     }
 
-    // --- 5. VERIFICATION ---
+    // --- 4. VERIFICATION ---
     if (networkName !== "unknown" && process.env.POLYGONSCAN_API_KEY) {
-        console.log("\n🔍 5. Verifying contracts on Polygonscan...");
+        console.log("\n🔍 4. Verifying contracts on Polygonscan...");
         await verify(tghsxToken.address, []);
-        // CORRECTED: The vault constructor only takes one argument
         await verify(collateralVault.address, [tghsxToken.address]);
-        for (const config of tokenConfigs) {
-           await verify(mockTokens[config.symbol], [config.name, config.symbol, config.decimals, config.supply]);
-        }
     }
 
-    // --- 6. SAVE DEPLOYMENT INFO ---
-    console.log("\n💾 6. Saving deployment artifacts...");
+    // --- 5. SAVE DEPLOYMENT INFO ---
+    console.log("\n💾 5. Saving deployment artifacts...");
     const deploymentInfo = {
         network: networkName,
         chainId: network.chainId,
@@ -101,11 +87,12 @@ async function main() {
         contracts: {
             TGHSXToken: tghsxToken.address,
             CollateralVault: collateralVault.address,
-            MockTokens: mockTokens
+            // Note: MockTokens are not deployed by this script, but included for reference
+            MockTokens: mockTokens 
         }
     };
     if (!fs.existsSync('./deployments')) fs.mkdirSync('./deployments');
-    const deploymentFile = `./deployments/${networkName}-deployment.json`;
+    const deploymentFile = `./deployments/${networkName}-deployment-${Date.now()}.json`;
     fs.writeFileSync(deploymentFile, JSON.stringify(deploymentInfo, null, 2));
     console.log("  ✅ Deployment info saved to:", deploymentFile);
 
@@ -113,7 +100,6 @@ async function main() {
     console.log("=".repeat(60));
     console.log("TGHSXToken:", tghsxToken.address);
     console.log("CollateralVault:", collateralVault.address);
-    console.log("Mock Tokens:", mockTokens);
     console.log("=".repeat(60));
 }
 

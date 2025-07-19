@@ -6,10 +6,6 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/**
- * @title TGHSXToken - Polygon Optimized
- * @dev ERC-20 token contract for the tGHSX stablecoin optimized for Polygon.
- */
 contract TGHSXToken is ERC20, AccessControl, ERC20Burnable, ReentrancyGuard {
     bytes32 public constant MINTER_BURNER_ROLE = keccak256("MINTER_BURNER_ROLE");
     bytes32 public constant AUTO_MINTER_ROLE = keccak256("AUTO_MINTER_ROLE");
@@ -181,7 +177,7 @@ contract TGHSXToken is ERC20, AccessControl, ERC20Burnable, ReentrancyGuard {
             revert CooldownNotMet();
         }
         
-        if (userData.dailyMinted + amount > MAX_MINT_PER_DAY) {
+        if (userData.dailyMinted + uint128(amount) > MAX_MINT_PER_DAY) {
             emit AntiAbuseTriggered(user, "Daily limit exceeded");
             revert ExceedsDailyLimit();
         }
@@ -208,7 +204,6 @@ contract TGHSXToken is ERC20, AccessControl, ERC20Burnable, ReentrancyGuard {
         remainingMints = dailyMintCount >= autoMintConfig.maxMintsPerUser ? 0 : autoMintConfig.maxMintsPerUser - dailyMintCount;
     }
     
-    // FIX: Renamed return variables to avoid shadowing state variables.
     function getGlobalMintStatus() external view returns (
         uint256 _globalDailyMinted,
         uint256 _globalDailyRemaining,
@@ -246,14 +241,16 @@ contract TGHSXToken is ERC20, AccessControl, ERC20Burnable, ReentrancyGuard {
         emit ConfigUpdated("AutoMintConfig", 0, 0);
     }
     
-    function toggleEmergencyStop(bool _emergencyStop) external onlyRole(EMERGENCY_ROLE) {
-        emergencyStop = _emergencyStop;
-        emit EmergencyStopToggled(_emergencyStop);
-    }
-    
+    // --- CORRECTED: Added the missing toggleAutoMint function ---
     function toggleAutoMint(bool _autoMintEnabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
         autoMintEnabled = _autoMintEnabled;
         emit AutoMintToggled(_autoMintEnabled);
+    }
+    // --- END CORRECTION ---
+
+    function toggleEmergencyStop(bool _emergencyStop) external onlyRole(EMERGENCY_ROLE) {
+        emergencyStop = _emergencyStop;
+        emit EmergencyStopToggled(_emergencyStop);
     }
     
     function emergencyResetUserLimits(address user) external onlyRole(EMERGENCY_ROLE) {
@@ -292,7 +289,6 @@ contract TGHSXToken is ERC20, AccessControl, ERC20Burnable, ReentrancyGuard {
         }
     }
     
-    // FIX: Renamed return variables to avoid shadowing state variables.
     function getContractStatus() external view returns (
         bool _emergencyStopStatus,
         bool _autoMintStatus,

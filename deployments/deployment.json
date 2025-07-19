@@ -1,11 +1,11 @@
 {
-  "network": "unknown",
+  "network": "amoy",
   "chainId": 80002,
-  "timestamp": "2025-07-14T17:53:10.011Z",
+  "timestamp": "2025-07-19T12:50:11.905Z",
   "deployer": "0x1a0312B0453507CC412012Cc699f8d64d8219aeE",
   "contracts": {
-    "TGHSXToken": "0x7aD3121876c4F8104F3703efe3034CE632974943",
-    "CollateralVault": "0x8dc1E1E376E5f105Ee22b6a20F943bbd897e192B",
+    "TGHSXToken": "0xb04093d34F5feC6DE685B8684F3e2086dd866a50",
+    "CollateralVault": "0xF681Ba510d3C93A49a7AB2d02d9697BB2B0091FE",
     "MockTokens": {
       "USDC": "0xAC2f1680f2705d3Dd314534Bf24b424ccBC8D8f5",
       "WETH": "0xF5FcbF9D665DC89b2d18f87a6994F04849dC80E5",

@@ -13,7 +13,7 @@ app = FastAPI(
     version="1.0.1",
     contact={
         "name": "Support",
-        "url": "https://example.com/contact",
+        "url": "#",
     },
     license_info={
         "name": "MIT",

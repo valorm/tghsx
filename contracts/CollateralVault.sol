@@ -10,14 +10,11 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 interface ITGHSXToken {
     function mint(address to, uint256 amount) external;
     function burnFrom(address from, uint256 amount) external;
+    function burn(uint256 amount) external;
     function decimals() external view returns (uint8);
     function balanceOf(address account) external view returns (uint256);
 }
 
-/**
- * @title CollateralVault - Polygon Optimized with Auto-Mint
- * @dev Vault contract for managing collateral and auto-minting tGHSX stablecoin
- */
 contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
     using SafeERC20 for IERC20;
     
@@ -50,7 +47,6 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
         uint8 decimals;
     }
     
-    // CORRECTED: Use uint256 to support 18-decimal tokens
     struct UserPosition {
         uint256 collateralAmount;
         uint256 mintedAmount;
@@ -196,15 +192,13 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
         whenNotPaused 
         onlyAuthorizedCollateral(collateral)
     {
-        // Check against MIN_DEPOSIT_AMOUNT is tricky with varying decimals.
-        // A simple check is to ensure amount > 0.
         if (amount == 0) revert InvalidAmount();
         
         UserPosition storage position = userPositions[msg.sender][collateral];
         
         IERC20(collateral).safeTransferFrom(msg.sender, address(this), amount);
         
-        position.collateralAmount += amount; // No longer needs casting
+        position.collateralAmount += amount;
         position.lastUpdateTime = uint32(block.timestamp);
         
         if (position.positionId == 0) {
@@ -270,13 +264,13 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
         emit TokensMinted(msg.sender, collateral, amount);
     }
     
+    // CORRECTED: Removed antiAbuse modifier and integrated checks directly
     function autoMint(address collateral) 
         external 
         nonReentrant 
         whenNotPaused 
         onlyAuthorizedCollateral(collateral)
         validPrice(collateral)
-        antiAbuse(msg.sender, autoMintConfig.baseReward)
     {
         if (!autoMintEnabled) revert AutoMintDisabled();
         
@@ -285,15 +279,10 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
         
         if (position.collateralAmount == 0) revert InsufficientCollateral();
         
-        uint256 collateralValue = _getCollateralValue(collateral, position.collateralAmount);
-        uint256 currentDebt = position.mintedAmount;
-        uint256 currentRatio = currentDebt == 0 ? type(uint256).max : (collateralValue * PRECISION) / currentDebt;
-        
-        if (currentRatio < autoMintConfig.collateralRequirement) revert InsufficientCollateralForAutoMint();
-        
+        // --- Start of integrated anti-abuse logic ---
+        // 1. Calculate bonus first, based on the *old* lastMintTime
         uint256 reward = autoMintConfig.baseReward;
         uint256 bonus = 0;
-        
         if (tghsxToken.balanceOf(msg.sender) > 0 && mintData.lastMintTime > 0) {
             uint256 holdTime = block.timestamp - mintData.lastMintTime;
             if (holdTime >= autoMintConfig.minHoldTime) {
@@ -301,6 +290,18 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
                 reward += bonus;
             }
         }
+        
+        // 2. Perform all checks from the antiAbuse modifier using the final reward amount
+        if (reward < MIN_MINT_AMOUNT) revert InvalidAmount();
+        if (reward > MAX_SINGLE_MINT) revert ExceedsMaxMint();
+        _checkAndUpdateUserLimits(msg.sender, reward);
+        // --- End of integrated anti-abuse logic ---
+
+        uint256 collateralValue = _getCollateralValue(collateral, position.collateralAmount);
+        uint256 currentDebt = position.mintedAmount;
+        uint256 currentRatio = currentDebt == 0 ? type(uint256).max : (collateralValue * PRECISION) / currentDebt;
+        
+        if (currentRatio < autoMintConfig.collateralRequirement) revert InsufficientCollateralForAutoMint();
         
         uint256 newMintedAmount = position.mintedAmount + reward;
         uint256 requiredCollateral = (newMintedAmount * MIN_COLLATERAL_RATIO) / PRECISION;
@@ -359,20 +360,19 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
         
         if (collateralRatio >= LIQUIDATION_THRESHOLD) revert NotLiquidatable();
         
-        uint256 liquidationBonus = (position.collateralAmount * collateralConfigs[collateral].liquidationBonus) / 10000;
-        
-        uint256 collateralToTransfer = position.collateralAmount + liquidationBonus;
+        uint256 collateralToTransfer = position.collateralAmount;
         uint256 debtToBurn = position.mintedAmount;
         
-        totalMintedGlobal -= position.mintedAmount;
+        totalMintedGlobal -= debtToBurn;
         
-        emit PositionLiquidated(user, collateral, position.collateralAmount, position.mintedAmount);
+        emit PositionLiquidated(user, collateral, position.collateralAmount, debtToBurn);
         
         delete userPositions[user][collateral];
         
+        IERC20(address(tghsxToken)).safeTransferFrom(msg.sender, address(this), debtToBurn);
+        tghsxToken.burn(debtToBurn);
+
         IERC20(collateral).safeTransfer(msg.sender, collateralToTransfer);
-        
-        tghsxToken.burnFrom(msg.sender, debtToBurn);
     }
     
     function _checkAndUpdateUserLimits(address user, uint256 amount) internal {
@@ -383,11 +383,6 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
             mintData.dailyMinted = 0;
             mintData.dailyMintCount = 0;
             mintData.lastMintDay = today;
-        }
-        
-        if (today != currentDay) {
-            globalDailyMinted = 0;
-            currentDay = today;
         }
         
         if (block.timestamp - mintData.lastMintTime < COOLDOWN) {
@@ -405,14 +400,15 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
             revert ExceedsGlobalLimit();
         }
         
-        if (mintData.dailyMintCount >= MAX_MINTS_PER_USER_PER_DAY) {
+        mintData.dailyMintCount++;
+        
+        if (mintData.dailyMintCount > MAX_MINTS_PER_USER_PER_DAY) {
             emit AntiAbuseTriggered(user, "Max mints per day exceeded");
             revert ExceedsMaxMintsPerDay();
         }
         
         mintData.dailyMinted += uint128(amount);
         mintData.lastMintTime = uint64(block.timestamp);
-        mintData.dailyMintCount++;
     }
     
     function _getCollateralValue(address collateral, uint256 amount) internal view returns (uint256) {

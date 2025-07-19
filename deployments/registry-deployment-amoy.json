@@ -1,0 +1,8 @@
+{
+  "network": "amoy",
+  "timestamp": "17/07/2025, 10:47:59 pm",
+  "deployer": "0x1a0312B0453507CC412012Cc699f8d64d8219aeE",
+  "contracts": {
+    "VersionRegistry": "0x3286527136AA61eA6A4f467b16c970cdA2D8fBED"
+  }
+}
