@@ -7,7 +7,7 @@
  * ==================================================================================
  */
 
-const BACKEND_URL = 'https://tghsx-backend.onrender.com'; 
+const BACKEND_URL = 'https://tghsx.onrender.com'; 
 let toastTimeout;
 
 function showRegisterForm(event) {

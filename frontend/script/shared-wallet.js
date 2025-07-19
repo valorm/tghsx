@@ -17,7 +17,7 @@ const NETWORKS = {
     31337: 'Localhost',
 };
 const REQUIRED_CHAIN_ID = 80002;
-export const BACKEND_URL = 'https://tghsx-backend.onrender.com';
+export const BACKEND_URL = 'https://tghsx.onrender.com';
 
 // --- FIX: Updated Contract Addresses and ABIs ---
 const COLLATERAL_VAULT_ADDRESS = "0x43842184d249247fA2393865942445163478294A"; // Correct address for the multi-collateral vault
