@@ -3,21 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://esm.sh; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:8000 https://tghsx-backend.onrender.com wss://relay.walletconnect.com wss://*.walletconnect.org; img-src 'self' data: https://s2.coinmarketcap.com https://explorer-api.walletconnect.com;">
-    <link rel="icon" href="../favicon.png" type="image/png">
-    
-    <link rel="manifest" href="../manifest.json">
-    <meta name="theme-color" content="#1a1a2e">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="tGHSX">
-    <link rel="apple-touch-icon" href="../images/icons/icon-192x192.png">
-
+    <!-- REMOVED: Restrictive Content-Security-Policy to prevent wallet connection issues -->
     <title>tGHSX - Ghana Stablecoin</title>
     
-    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js" integrity="sha256-pmKTpqK7Te4GGmhhK+C+PFwKt+QGirjZiko1e69mTHM=" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" xintegrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="icon" href="../favicon.png" type="image/png">
+    <link rel="manifest" href="../manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -51,86 +45,103 @@
 
         <div class="container">
             <div class="main-content">
-                <!-- Vault Status Card -->
-                <div class="card vault-status-card">
-                    <div class="card-header">
-                        <h2 class="card-title"><i class="fas fa-vault"></i> Your Vault</h2>
-                        <span class="collateral-ratio-badge" id="vaultHealthBadge"><i class="fas fa-shield-alt"></i> Not Connected</span>
-                    </div>
-                    <div class="input-group">
-                        <label for="collateralSelector" class="input-label">Select Collateral</label>
-                        <select id="collateralSelector" class="input-field"></select>
-                    </div>
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <div class="stat-label">Collateral Locked</div>
-                            <div class="stat-value" id="vaultCollateral">0.00</div>
+                <!-- Left Column: Vault Status and Mint Requests -->
+                <div class="left-column">
+                    <!-- Vault Status Card -->
+                    <div class="card vault-status-card">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-vault"></i> Your Vault</h2>
+                            <span class="collateral-ratio-badge" id="vaultHealthBadge"><i class="fas fa-shield-alt"></i> Not Connected</span>
                         </div>
-                        <div class="stat-item">
-                            <div class="stat-label">tGHSX Debt</div>
-                            <div class="stat-value" id="vaultDebt">0.00</div>
+                        <div class="input-group">
+                            <label for="collateralSelector" class="input-label">Select Collateral</label>
+                            <select id="collateralSelector" class="input-field"></select>
                         </div>
-                        <div class="stat-item">
-                            <div class="stat-label">Collateral Ratio</div>
-                            <div class="stat-value" id="vaultRatio">--%</div>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-label">Collateral Locked</div>
+                                <div class="stat-value" id="vaultCollateral">0.00</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">tGHSX Debt</div>
+                                <div class="stat-value" id="vaultDebt">0.00</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Collateral Ratio</div>
+                                <div class="stat-value" id="vaultRatio">--%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- NEW: Mint Requests Card -->
+                    <div class="card mint-requests-card">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-hourglass-half"></i> Your Mint Requests</h2>
+                        </div>
+                        <div class="card-content">
+                            <ul id="mintRequestsList" class="mint-requests-list">
+                                <li class="no-requests">Connect wallet to see requests.</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
 
-                <!-- Actions Card -->
-                <div class="card actions-card">
-                    <div class="tabs">
-                        <button class="tab-link active" onclick="openTab(event, 'Deposit')">Deposit</button>
-                        <button class="tab-link" onclick="openTab(event, 'Mint')">Mint</button>
-                        <button class="tab-link" onclick="openTab(event, 'Burn')">Burn (Repay)</button>
-                        <button class="tab-link" onclick="openTab(event, 'Withdraw')">Withdraw</button>
-                    </div>
+                <!-- Right Column: Actions Card -->
+                <div class="right-column">
+                    <div class="card actions-card">
+                        <div class="tabs">
+                            <button class="tab-link active" onclick="openTab(event, 'Deposit')">Deposit</button>
+                            <button class="tab-link" onclick="openTab(event, 'Mint')">Mint</button>
+                            <button class="tab-link" onclick="openTab(event, 'Burn')">Burn (Repay)</button>
+                            <button class="tab-link" onclick="openTab(event, 'Withdraw')">Withdraw</button>
+                        </div>
 
-                    <!-- Deposit Tab -->
-                    <div id="Deposit" class="tab-content active">
-                        <h3>Deposit Collateral</h3>
-                        <p>Add collateral to your vault to increase your borrowing power.</p>
-                        <div class="input-group">
-                            <label for="collateralInput" class="input-label">Amount to Deposit</label>
-                            <div class="input-with-balance">
-                                <input type="number" id="collateralInput" class="input-field" placeholder="0.00">
-                                <span id="userBalance" class="balance-text">Balance: 0.00</span>
+                        <!-- Deposit Tab -->
+                        <div id="Deposit" class="tab-content active">
+                            <h3>Deposit Collateral</h3>
+                            <p>Add collateral to your vault to increase your borrowing power.</p>
+                            <div class="input-group">
+                                <label for="collateralInput" class="input-label">Amount to Deposit</label>
+                                <div class="input-with-balance">
+                                    <input type="number" id="collateralInput" class="input-field" placeholder="0.00">
+                                    <span id="userBalance" class="balance-text">Balance: 0.00</span>
+                                </div>
                             </div>
+                            <button id="depositBtn" class="action-btn"><i class="fas fa-arrow-down"></i> Deposit</button>
                         </div>
-                        <button id="depositBtn" class="action-btn"><i class="fas fa-arrow-down"></i> Deposit</button>
-                    </div>
 
-                    <!-- Mint Tab -->
-                    <div id="Mint" class="tab-content">
-                        <h3>Mint tGHSX</h3>
-                        <p>Borrow tGHSX against your deposited collateral.</p>
-                        <div class="input-group">
-                            <label for="mintInput" class="input-label">Amount to Mint</label>
-                            <input type="number" id="mintInput" class="input-field" placeholder="0.00">
+                        <!-- Mint Tab -->
+                        <div id="Mint" class="tab-content">
+                            <h3>Mint tGHSX</h3>
+                            <p>Request to borrow tGHSX against your deposited collateral. Requires admin approval.</p>
+                            <div class="input-group">
+                                <label for="mintInput" class="input-label">Amount to Mint</label>
+                                <input type="number" id="mintInput" class="input-field" placeholder="0.00">
+                            </div>
+                            <button id="mintBtn" class="action-btn"><i class="fas fa-paper-plane"></i> Submit Mint Request</button>
                         </div>
-                        <button id="mintBtn" class="action-btn"><i class="fas fa-plus-circle"></i> Request Mint</button>
-                    </div>
 
-                    <!-- Burn Tab -->
-                    <div id="Burn" class="tab-content">
-                        <h3>Burn tGHSX (Repay Debt)</h3>
-                        <p>Repay your minted tGHSX to free up your collateral.</p>
-                        <div class="input-group">
-                            <label for="repayInput" class="input-label">Amount to Repay</label>
-                            <input type="number" id="repayInput" class="input-field" placeholder="0.00">
+                        <!-- Burn Tab -->
+                        <div id="Burn" class="tab-content">
+                            <h3>Burn tGHSX (Repay Debt)</h3>
+                            <p>Repay your minted tGHSX to free up your collateral.</p>
+                            <div class="input-group">
+                                <label for="repayInput" class="input-label">Amount to Repay</label>
+                                <input type="number" id="repayInput" class="input-field" placeholder="0.00">
+                            </div>
+                            <button id="burnBtn" class="action-btn secondary-btn"><i class="fas fa-fire"></i> Burn tGHSX</button>
                         </div>
-                        <button id="burnBtn" class="action-btn secondary-btn"><i class="fas fa-fire"></i> Burn tGHSX</button>
-                    </div>
 
-                    <!-- Withdraw Tab -->
-                    <div id="Withdraw" class="tab-content">
-                        <h3>Withdraw Collateral</h3>
-                        <p>Withdraw your collateral after repaying the corresponding debt.</p>
-                        <div class="input-group">
-                            <label for="withdrawInput" class="input-label">Amount to Withdraw</label>
-                            <input type="number" id="withdrawInput" class="input-field" placeholder="0.00">
+                        <!-- Withdraw Tab -->
+                        <div id="Withdraw" class="tab-content">
+                            <h3>Withdraw Collateral</h3>
+                            <p>Withdraw your collateral after repaying the corresponding debt.</p>
+                            <div class="input-group">
+                                <label for="withdrawInput" class="input-label">Amount to Withdraw</label>
+                                <input type="number" id="withdrawInput" class="input-field" placeholder="0.00">
+                            </div>
+                            <button id="withdrawBtn" class="action-btn secondary-btn"><i class="fas fa-arrow-up"></i> Withdraw</button>
                         </div>
-                        <button id="withdrawBtn" class="action-btn secondary-btn"><i class="fas fa-arrow-up"></i> Withdraw</button>
                     </div>
                 </div>
             </div>
