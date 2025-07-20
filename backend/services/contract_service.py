@@ -1,9 +1,12 @@
 # In /backend/services/contract_service.py
 
 import os
+import time
 from web3 import Web3
 from typing import Dict, Any
 from decimal import Decimal
+from web3.exceptions import ContractLogicError
+from fastapi import HTTPException, status
 
 from services.web3_client import get_web3_provider
 from utils.utils import load_contract_abi
@@ -22,8 +25,8 @@ except Exception as e:
 class OnChainContractService:
     """
     This service provides helper methods to interact directly with the
-    CollateralVault smart contract, aligning with the updated backend routes.
-    It replaces the previous off-chain simulation logic.
+    CollateralVault smart contract. It includes validation, error handling,
+    and unit conversions for consistency across the application.
     """
 
     def __init__(self):
@@ -35,66 +38,103 @@ class OnChainContractService:
             address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS),
             abi=COLLATERAL_VAULT_ABI
         )
+        self.PRECISION = 10**6
+
+    # FIX: Add a proactive price staleness check
+    def check_price_validity(self, collateral_address: str = None):
+        """Checks if collateral prices are updated within the last hour."""
+        try:
+            collateral_tokens_to_check = []
+            if collateral_address:
+                collateral_tokens_to_check.append(collateral_address)
+            else:
+                # If no specific address, check all registered collaterals
+                collateral_tokens_to_check = self.vault_contract.functions.getAllCollateralTokens().call()
+
+            current_time = int(time.time())
+            for token in collateral_tokens_to_check:
+                config = self.vault_contract.functions.collateralConfigs(Web3.to_checksum_address(token)).call()
+                if not config[0]: # Skip disabled collaterals
+                    continue
+                last_update = config[2] # lastPriceUpdate timestamp
+                if current_time - last_update > 3600: # 1 hour
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Price data for collateral {token} is stale."
+                    )
+        except HTTPException as http_exc:
+            raise http_exc
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to check price validity: {str(e)}"
+            )
 
     def get_user_position(self, user_address: str, collateral_address: str) -> Dict[str, Any]:
         """
-        Fetches a user's detailed position directly from the smart contract.
-
-        Args:
-            user_address (str): The user's wallet address.
-            collateral_address (str): The address of the collateral token.
-
-        Returns:
-            A dictionary containing the user's position details.
+        Fetches and normalizes a user's position, with validation and error handling.
         """
         try:
-            # The contract's getUserPosition returns a tuple:
-            # (collateralAmount, mintedAmount, collateralValue, collateralRatio, isLiquidatable, lastUpdateTime)
+            # FIX: Add input address validation
+            if not Web3.is_address(user_address) or not Web3.is_address(collateral_address):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user or collateral address.")
+            
+            # FIX: Proactively check for stale prices before calling the contract
+            self.check_price_validity(collateral_address)
+
+            config = self.vault_contract.functions.collateralConfigs(Web3.to_checksum_address(collateral_address)).call()
+            collateral_decimals = config[5]
+            
             position_data = self.vault_contract.functions.getUserPosition(
                 Web3.to_checksum_address(user_address),
                 Web3.to_checksum_address(collateral_address)
             ).call()
 
-            # Convert raw data to a more usable dictionary format
-            # Note: The contract handles decimal precision, so we return the raw values
-            # and let the calling route handle formatting for the API response.
+            # FIX: Add unit conversions for consistency
             return {
-                "collateralAmount": position_data[0],
-                "mintedAmount": position_data[1],
-                "collateralValue": position_data[2],
-                "collateralRatio": position_data[3],
+                "collateralAmount": float(Decimal(position_data[0]) / Decimal(10**collateral_decimals)),
+                "mintedAmount": float(Decimal(position_data[1]) / Decimal(self.PRECISION)),
+                "collateralValue": float(Decimal(position_data[2]) / Decimal(self.PRECISION)),
+                "collateralRatio": float(Decimal(position_data[3]) / Decimal(self.PRECISION)),
                 "isLiquidatable": position_data[4],
                 "lastUpdateTime": position_data[5]
             }
+        except HTTPException as http_exc:
+            raise http_exc
+        # FIX: Add specific error handling for contract reverts
+        except ContractLogicError as e:
+            if "PriceStale" in str(e):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Price data is stale.")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Contract error: {str(e)}")
         except Exception as e:
-            print(f"Error fetching user position for {user_address} with collateral {collateral_address}: {e}")
-            # Return a zero-state dictionary on failure
-            return {
-                "collateralAmount": 0,
-                "mintedAmount": 0,
-                "collateralValue": 0,
-                "collateralRatio": 0,
-                "isLiquidatable": False,
-                "lastUpdateTime": 0
-            }
+            print(f"Error in get_user_position for {user_address}: {e}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch user position.")
 
     def get_global_vault_status(self) -> Dict[str, Any]:
         """
-        Fetches the global status of the vault from the smart contract.
+        Fetches and normalizes the global status of the vault, with error handling.
         """
         try:
-            # The contract's getVaultStatus returns a tuple:
-            # (totalMinted, globalDailyMinted, globalDailyRemaining, autoMintEnabled, paused, totalCollateralTypes)
+            # FIX: Proactively check all collateral prices
+            self.check_price_validity()
+            
             status_data = self.vault_contract.functions.getVaultStatus().call()
 
+            # FIX: Add unit conversions and handle errors gracefully
             return {
-                "totalMintedGlobal": status_data[0],
-                "globalDailyMinted": status_data[1],
-                "globalDailyRemaining": status_data[2],
+                "totalMintedGlobal": float(Decimal(status_data[0]) / Decimal(self.PRECISION)),
+                "globalDailyMinted": float(Decimal(status_data[1]) / Decimal(self.PRECISION)),
+                "globalDailyRemaining": float(Decimal(status_data[2]) / Decimal(self.PRECISION)),
                 "isAutoMintEnabled": status_data[3],
                 "isPaused": status_data[4],
                 "totalCollateralTypes": status_data[5]
             }
+        except HTTPException as http_exc:
+            raise http_exc
+        except ContractLogicError as e:
+            if "PriceStale" in str(e):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Price data is stale.")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Contract error: {str(e)}")
         except Exception as e:
-            print(f"Error fetching global vault status: {e}")
-            return {}
+            print(f"Error in get_global_vault_status: {e}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch global vault status.")

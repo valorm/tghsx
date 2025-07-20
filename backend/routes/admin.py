@@ -2,13 +2,12 @@
 
 import os
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import Dict, Any
 from web3 import Web3
 from web3.middleware import geth_poa_middleware
 
 from services.web3_client import get_web3_provider
-# FIX: Corrected imports. send_admin_transaction is now imported from web3_service.
 from utils.utils import is_admin_user, load_contract_abi
 from services.web3_service import send_admin_transaction
 
@@ -17,12 +16,44 @@ router = APIRouter()
 COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
 COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
 
-# --- Pydantic Model for Auto-Mint Config ---
+# --- FIX: Constants from CollateralVault contract for validation ---
+PRECISION = 10**6
+MAX_SINGLE_MINT = 1000 * PRECISION
+MAX_BONUS_MULTIPLIER = 5000
+MAX_HOLD_TIME = 86400  # 24 hours in seconds
+# MIN_COLLATERAL_RATIO is 150%, stored as 150 * 10**4, so we adjust for PRECISION
+MIN_COLLATERAL_RATIO_VALUE = 150
+
+# --- FIX: Pydantic Model with validation and human-readable units ---
 class AutoMintConfigPayload(BaseModel):
-    baseReward: int
+    baseReward: float  # Accept human-readable values (e.g., 10.0 for 10 tGHSX)
     bonusMultiplier: int
     minHoldTime: int
-    collateralRequirement: int
+    collateralRequirement: float  # Accept percentage (e.g., 200.0 for 200%)
+
+    @validator('baseReward')
+    def validate_base_reward(cls, v):
+        if v <= 0 or (v * PRECISION) > MAX_SINGLE_MINT:
+            raise ValueError(f"Base Reward must be > 0 and <= {MAX_SINGLE_MINT / PRECISION}")
+        return v
+
+    @validator('bonusMultiplier')
+    def validate_bonus_multiplier(cls, v):
+        if v < 0 or v > MAX_BONUS_MULTIPLIER:
+            raise ValueError(f"Bonus Multiplier must be between 0 and {MAX_BONUS_MULTIPLIER}")
+        return v
+
+    @validator('minHoldTime')
+    def validate_min_hold_time(cls, v):
+        if v < 0 or v > MAX_HOLD_TIME:
+            raise ValueError(f"Min Hold Time must be between 0 and {MAX_HOLD_TIME} seconds")
+        return v
+
+    @validator('collateralRequirement')
+    def validate_collateral_requirement(cls, v):
+        if v < MIN_COLLATERAL_RATIO_VALUE:
+            raise ValueError(f"Collateral Requirement must be >= {MIN_COLLATERAL_RATIO_VALUE}%")
+        return v
 
 # --- Admin Endpoints ---
 
@@ -94,12 +125,13 @@ async def get_automint_config():
         config = vault_contract.functions.autoMintConfig().call()
         is_enabled = vault_contract.functions.autoMintEnabled().call()
         
+        # FIX: Normalize response to return human-readable numbers
         return {
             "isEnabled": is_enabled,
-            "baseReward": str(config[0]),
+            "baseReward": config[0] / PRECISION,  # Convert to human-readable (e.g., 10.0)
             "bonusMultiplier": config[1],
             "minHoldTime": config[2],
-            "collateralRequirement": str(config[3])
+            "collateralRequirement": config[3] # The contract stores this as a direct percentage (e.g., 200 for 200%)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch auto-mint config: {str(e)}")
@@ -126,11 +158,14 @@ async def update_automint_config(payload: AutoMintConfigPayload):
         w3 = get_web3_provider()
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
         
+        # FIX: Convert human-readable values to contract units
+        base_reward_units = int(payload.baseReward * PRECISION)
+        
         function_call = vault_contract.functions.updateAutoMintConfig(
-            payload.baseReward,
+            base_reward_units,
             payload.bonusMultiplier,
             payload.minHoldTime,
-            payload.collateralRequirement
+            int(payload.collateralRequirement)
         )
         tx_hash = send_admin_transaction(function_call)
         
