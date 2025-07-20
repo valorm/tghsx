@@ -4,16 +4,17 @@ services:
     runtime: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    # FIX: Use gunicorn to run uvicorn workers for a stable production server
     startCommand: "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app"
     envVars:
       # --- Environment Variable Group ---
-
+      # All sensitive keys are pulled from the 'tghs-env' group on Render.
 
       # Blockchain & Contract Configuration
       - key: AMOY_RPC_URL
         fromGroup: tghs-env
-      # FIX: Renamed for clarity to match its role in the application
+      # FIX: Add a premium RPC URL for better reliability
+      - key: ALCHEMY_AMOY_RPC_URL
+        fromGroup: tghs-env
       - key: ADMIN_PRIVATE_KEY
         fromGroup: tghs-env
       - key: TGHSX_TOKEN_ADDRESS
@@ -25,6 +26,8 @@ services:
       - key: CHAINLINK_ETH_USD_PRICE_FEED_ADDRESS
         fromGroup: tghs-env
       - key: CHAINLINK_USD_GHS_PRICE_FEED_ADDRESS
+        fromGroup: tghs-env
+      - key: COINMARKETCAP_API_KEY # For fallback
         fromGroup: tghs-env
 
       # Supabase Configuration
