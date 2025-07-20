@@ -11,3 +11,4 @@ python-multipart==0.0.20
 PyJWT==2.10.1
 python-jose==3.3.0
 backoff
+validators
