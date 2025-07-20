@@ -7,3 +7,4 @@ python-jose==3.3.0
 validators==0.33.0
 fastapi-cache2[redis]==0.2.1
 aioredis==2.0.1
+python-dotenv==1.0.1
