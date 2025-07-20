@@ -8,7 +8,7 @@ backoff==2.2.1
 bitarray==3.5.1
 certifi==2025.7.14
 charset-normalizer==3.4.2
-ckzg==2.1.1
+ckzg
 click==8.2.1
 colorama==0.4.6
 cytoolz==1.0.1
@@ -17,7 +17,7 @@ dnspython==2.7.0
 ecdsa==0.19.1
 email_validator==2.2.0
 eth_abi==5.2.0
-eth-account==0.13.7
+eth-account
 eth-hash==0.7.1
 eth-keyfile==0.8.1
 eth-keys==0.7.0
