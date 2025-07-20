@@ -41,8 +41,8 @@ async def get_at_risk_vaults(
         w3 = get_web3_provider()
         vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
         
-        # Fetch all profiles that have a saved wallet address and collateral type
-        profiles_res = supabase.from_("profiles").select("wallet_address, default_collateral_address").neq("wallet_address", "null").neq("default_collateral_address", "null").execute()
+        # --- FIX: Removed the non-existent 'default_collateral_address' from the select query ---
+        profiles_res = supabase.from_("profiles").select("wallet_address").neq("wallet_address", "null").execute()
         
         if not profiles_res.data:
             return []
@@ -50,36 +50,36 @@ async def get_at_risk_vaults(
         at_risk_vaults = []
         PRECISION = 10**6
 
+        # Get all possible collateral tokens registered in the contract
+        all_collaterals = vault_contract.functions.getAllCollateralTokens().call()
+
         for profile in profiles_res.data:
             wallet_address = profile.get("wallet_address")
-            collateral_token_address = profile.get("default_collateral_address")
-            
-            if not wallet_address or not collateral_token_address:
+            if not wallet_address:
                 continue
 
-            # --- FIX: Correctly call getUserPosition and use the 'isLiquidatable' flag from the contract. ---
-            # This is the single source of truth and much more reliable than calculating it here.
-            # The contract returns: (collateralAmount, mintedAmount, collateralValue, collateralRatio, isLiquidatable, lastUpdateTime)
-            position = vault_contract.functions.getUserPosition(
-                Web3.to_checksum_address(wallet_address),
-                Web3.to_checksum_address(collateral_token_address)
-            ).call()
-            
-            is_liquidatable = position[4]
+            # For each user, check their position against every possible collateral
+            for collateral_token_address in all_collaterals:
+                position = vault_contract.functions.getUserPosition(
+                    Web3.to_checksum_address(wallet_address),
+                    Web3.to_checksum_address(collateral_token_address)
+                ).call()
+                
+                is_liquidatable = position[4]
 
-            if is_liquidatable:
-                collateral_amount = str(position[0])
-                minted_amount = str(Decimal(position[1]) / Decimal(PRECISION))
-                collateral_ratio = f"{(Decimal(position[3]) / Decimal(PRECISION)) * 100:.2f}%"
+                if is_liquidatable:
+                    collateral_amount = str(position[0])
+                    minted_amount = str(Decimal(position[1]) / Decimal(PRECISION))
+                    collateral_ratio = f"{(Decimal(position[3]) / Decimal(PRECISION)) * 100:.2f}%"
 
-                at_risk_vaults.append(AtRiskVault(
-                    wallet_address=wallet_address,
-                    collateral_address=collateral_token_address,
-                    collateral_amount=collateral_amount,
-                    minted_amount=minted_amount,
-                    collateralization_ratio=collateral_ratio,
-                    is_liquidatable=is_liquidatable
-                ))
+                    at_risk_vaults.append(AtRiskVault(
+                        wallet_address=wallet_address,
+                        collateral_address=collateral_token_address,
+                        collateral_amount=collateral_amount,
+                        minted_amount=minted_amount,
+                        collateralization_ratio=collateral_ratio,
+                        is_liquidatable=is_liquidatable
+                    ))
 
         return at_risk_vaults
 
