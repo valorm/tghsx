@@ -21,7 +21,8 @@ COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
 # --- Pydantic Models ---
 class SaveWalletRequest(BaseModel):
     wallet_address: str
-    default_collateral_address: str 
+    # This can be optional if you handle it on the backend
+    default_collateral_address: str | None = None 
 
 class VaultStatusResponse(BaseModel):
     collateralAmount: str
@@ -31,7 +32,6 @@ class VaultStatusResponse(BaseModel):
     isLiquidatable: bool
     lastUpdateTime: int
 
-# --- NEW: Model for mint status response ---
 class MintStatusResponse(BaseModel):
     dailyMinted: str
     remainingDaily: str
@@ -42,7 +42,33 @@ class MintStatusResponse(BaseModel):
 
 # --- Vault Endpoints ---
 
-# --- NEW: Endpoint to get user's minting status and cooldown ---
+@router.post("/save-wallet", status_code=status.HTTP_200_OK)
+async def save_wallet_address(
+    payload: SaveWalletRequest,
+    user: dict = Depends(get_current_user),
+    supabase = Depends(get_supabase_admin_client)
+):
+    """
+    Saves or updates the user's wallet address in their profile.
+    This is a crucial step after registration to link their account to a wallet.
+    """
+    user_id = user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Could not identify user from token.")
+    
+    try:
+        # Upsert ensures that it will create the profile if it doesn't exist,
+        # or update it if it does.
+        supabase.from_("profiles").upsert({
+            "id": user_id, 
+            "wallet_address": payload.wallet_address,
+            "default_collateral_address": payload.default_collateral_address
+        }).execute()
+        return {"message": "Wallet address saved successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save wallet address: {str(e)}")
+
+
 @router.get("/mint-status", response_model=MintStatusResponse)
 async def get_user_mint_status(
     user: dict = Depends(get_current_user),
@@ -51,8 +77,18 @@ async def get_user_mint_status(
     user_id = user.get("sub")
     try:
         user_res = supabase.from_("profiles").select("wallet_address").eq("id", user_id).single().execute()
+        
+        # --- FIX: Handle case where user has no profile or wallet address saved ---
+        # Instead of crashing, return a default "zero" state.
         if not user_res.data or not user_res.data.get("wallet_address"):
-            raise HTTPException(status_code=404, detail="User wallet address not found.")
+            return MintStatusResponse(
+                dailyMinted="0",
+                remainingDaily="0", # You might want to fetch the max daily limit here
+                lastMintTime=0,
+                cooldownRemaining=0,
+                dailyMintCount=0,
+                remainingMints=0 # You might want to fetch the max mints here
+            )
         
         user_wallet = Web3.to_checksum_address(user_res.data["wallet_address"])
 
@@ -79,7 +115,6 @@ async def get_onchain_vault_status(
     user: dict = Depends(get_current_user),
     supabase = Depends(get_supabase_admin_client)
 ):
-    # This function remains unchanged
     user_id = user.get("sub")
     try:
         user_res = supabase.from_("profiles").select("wallet_address").eq("id", user_id).single().execute()
@@ -107,5 +142,3 @@ async def get_onchain_vault_status(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve vault status: {e}")
-
-# save_wallet_address endpoint remains unchanged
