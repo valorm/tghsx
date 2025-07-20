@@ -8,7 +8,7 @@ from decimal import Decimal
 
 # Corrected Import Paths
 from services.web3_client import get_web3_provider
-from utils.utils import get_current_user, load_contract_abi
+from utils.utils import load_contract_abi
 
 router = APIRouter()
 
@@ -22,11 +22,10 @@ COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
 ERC20_ABI = load_contract_abi("abi/ERC20.json") 
 
 @router.get("/health", response_model=Dict[str, Any])
-async def get_protocol_health(
-    user: dict = Depends(get_current_user)
-):
+async def get_protocol_health():
     """
     Calculates and returns aggregated health metrics for the protocol.
+    This is a public endpoint and does not require authentication.
     """
     try:
         w3 = get_web3_provider()
