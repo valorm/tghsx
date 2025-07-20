@@ -6,167 +6,195 @@
     <title>tGHSX - Ghana Stablecoin</title>
     
     <link rel="icon" href="../favicon.png" type="image/png">
+    <link rel="manifest" href="../manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    
     <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js" defer></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <!-- Link to the new stylesheet -->
     <link rel="stylesheet" href="../css/index-styles.css">
 </head>
 <body>
-    <div class="app-container">
-        <header class="app-header">
-            <div class="header-title">
-                <h1>The Synthetic Ghanaian Cedi, backed by Crypto.</h1>
-                <div class="peg-status">
-                    <i class="fas fa-coins"></i>
-                    <span>1 tGHSX = 1 GHS</span>
-                    <span class="status-badge stable">Stable</span>
+    <div class="testnet-banner">TESTNET VERSION - For testing purposes only. Not audited.</div>
+    <div id="protocolStatusBanner" class="protocol-status-banner hidden"><i class="fas fa-exclamation-triangle"></i><span id="protocolStatusText"></span></div>
+
+    <div id="app-content">
+        <header>
+            <nav class="navbar">
+                <div class="navbar-container container">
+                    <a href="index.html" class="logo"><img src="../logo.png" alt="tGHSX Logo"></a>
+                    <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <div class="nav-menu" id="nav-menu">
+                        <div class="nav-links">
+                            <a href="index.html" class="nav-link active">Vault</a>
+                            <a href="analytics.html" class="nav-link">Analytics</a>
+                            <a href="transactions.html" class="nav-link">Transactions</a>
+                            <a href="liquidations.html" class="nav-link">Liquidations</a>
+                        </div>
+                        <div class="auth-buttons">
+                            <button id="logoutBtn">Logout</button>
+                            <button type="button" class="wallet-btn" id="walletBtn">Connect Wallet</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </nav>
         </header>
 
-        <div class="top-status-bar">
-            <div class="status-item" id="ghs-price-status">
-                <i class="fas fa-tag"></i>
-                <span>GH₵ 0.00</span>
-            </div>
-            <div class="status-item" id="tvl-status">
-                <i class="fas fa-lock"></i>
-                <span>N/A</span>
-            </div>
-            <div class="status-item" id="ratio-status">
-                <i class="fas fa-chart-pie"></i>
-                <span>140%</span>
-            </div>
-            <div class="status-item network-status" id="network-status">
-                <span class="network-dot"></span>
-                <span>Network: Not Connected</span>
+        <div class="container">
+            <div class="main-content">
+                <!-- Left Column: Vault Status and Mint Requests -->
+                <div class="left-column">
+                    <!-- Vault Status Card -->
+                    <div class="card vault-status-card">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-vault"></i> Your Vault</h2>
+                            <span class="collateral-ratio-badge" id="vaultHealthBadge"><i class="fas fa-shield-alt"></i> Not Connected</span>
+                        </div>
+                        <div class="input-group">
+                            <label for="collateralSelector" class="input-label">Select Collateral</label>
+                            <select id="collateralSelector" class="input-field"></select>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-label">Collateral Locked</div>
+                                <div class="stat-value" id="vaultCollateral">0.00</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">tGHSX Debt</div>
+                                <div class="stat-value" id="vaultDebt">0.00</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Collateral Ratio</div>
+                                <div class="stat-value" id="vaultRatio">--%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mint Requests Card -->
+                    <div class="card mint-requests-card">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-hourglass-half"></i> Your Mint Requests</h2>
+                        </div>
+                        <div class="card-content">
+                            <ul id="mintRequestsList" class="mint-requests-list">
+                                <li class="no-requests">Connect wallet to see requests.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Actions Card -->
+                <div class="right-column">
+                    <div class="card actions-card">
+                        <div class="tabs">
+                            <button class="tab-link active" onclick="openTab(event, 'Deposit')">Deposit</button>
+                            <button class="tab-link" onclick="openTab(event, 'Mint')">Mint</button>
+                            <button class="tab-link" onclick="openTab(event, 'AutoMint')">Claim Reward</button>
+                            <button class="tab-link" onclick="openTab(event, 'Burn')">Burn (Repay)</button>
+                            <button class="tab-link" onclick="openTab(event, 'Withdraw')">Withdraw</button>
+                        </div>
+
+                        <!-- Deposit Tab -->
+                        <div id="Deposit" class="tab-content active">
+                            <h3>Deposit Collateral</h3>
+                            <p>Add collateral to your vault to increase your borrowing power.</p>
+                            <div class="input-group">
+                                <label for="collateralInput" class="input-label">Amount to Deposit</label>
+                                <div class="input-with-balance">
+                                    <input type="number" id="collateralInput" class="input-field" placeholder="0.00">
+                                    <span id="userBalance" class="balance-text">Balance: 0.00</span>
+                                </div>
+                            </div>
+                            <button id="depositBtn" class="action-btn"><i class="fas fa-arrow-down"></i> Deposit</button>
+                        </div>
+
+                        <!-- Mint Tab -->
+                        <div id="Mint" class="tab-content">
+                            <h3>Mint tGHSX</h3>
+                            <p>Request to borrow tGHSX against your deposited collateral. Requires admin approval.</p>
+                            <div class="input-group">
+                                <label for="mintInput" class="input-label">Amount to Mint</label>
+                                <input type="number" id="mintInput" class="input-field" placeholder="0.00">
+                            </div>
+                            <button id="mintBtn" class="action-btn"><i class="fas fa-paper-plane"></i> Submit Mint Request</button>
+                        </div>
+
+                        <!-- Auto-Mint Tab -->
+                        <div id="AutoMint" class="tab-content">
+                            <h3>Claim tGHSX Reward</h3>
+                            <p>Periodically claim a tGHSX reward. Your collateral ratio must be healthy, and a cooldown period applies between claims.</p>
+                            <div class="auto-mint-status">
+                                <div id="autoMintStatus" class="status-box">
+                                    <span class="status-label">Status:</span>
+                                    <span id="cooldownStatusText" class="status-value">Loading...</span>
+                                </div>
+                                <div id="autoMintTimer" class="status-box">
+                                    <span class="status-label">Cooldown:</span>
+                                    <span id="cooldownTimerText" class="status-value">--:--</span>
+                                </div>
+                            </div>
+                            <button id="autoMintBtn" class="action-btn" disabled><i class="fas fa-gift"></i> Claim Reward</button>
+                        </div>
+
+                        <!-- Burn Tab -->
+                        <div id="Burn" class="tab-content">
+                            <h3>Burn tGHSX (Repay Debt)</h3>
+                            <p>Repay your minted tGHSX to free up your collateral.</p>
+                            <div class="input-group">
+                                <label for="repayInput" class="input-label">Amount to Repay</label>
+                                <input type="number" id="repayInput" class="input-field" placeholder="0.00">
+                            </div>
+                            <button id="burnBtn" class="action-btn secondary-btn"><i class="fas fa-fire"></i> Burn tGHSX</button>
+                        </div>
+
+                        <!-- Withdraw Tab -->
+                        <div id="Withdraw" class="tab-content">
+                            <h3>Withdraw Collateral</h3>
+                            <p>Withdraw your collateral after repaying the corresponding debt.</p>
+                            <div class="input-group">
+                                <label for="withdrawInput" class="input-label">Amount to Withdraw</label>
+                                <input type="number" id="withdrawInput" class="input-field" placeholder="0.00">
+                            </div>
+                            <button id="withdrawBtn" class="action-btn secondary-btn"><i class="fas fa-arrow-up"></i> Withdraw</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-
-        <main class="main-content">
-            <!-- Your Vault Card -->
-            <div class="card vault-card">
-                <div class="card-header">
-                    <h2><i class="fas fa-vault"></i> Your Vault</h2>
-                    <span class="status-badge disconnected" id="vault-connection-status">Not Connected</span>
-                </div>
-                <div class="vault-stats">
-                    <div class="stat">
-                        <label>Collateral (ETH)</label>
-                        <span id="vault-collateral">0.00</span>
-                    </div>
-                    <div class="stat">
-                        <label>Debt (tGHSX)</label>
-                        <span id="vault-debt" class="debt-value">0.00</span>
-                    </div>
-                    <div class="stat">
-                        <label>Collateral Ratio</label>
-                        <span id="vault-ratio">--%</span>
-                    </div>
-                </div>
-                <div class="liquidation-price-box">
-                    <label>Liquidation Price</label>
-                    <span id="liquidation-price">-- GH₵</span>
-                </div>
-                <div class="risk-level">
-                    <label>Risk Level</label>
-                    <div class="risk-bar-container">
-                        <div class="risk-bar" id="risk-bar"></div>
-                    </div>
-                    <div class="risk-labels">
-                        <span>Low</span>
-                        <span>Medium</span>
-                        <span>High</span>
-                    </div>
-                </div>
-                <div class="repay-withdraw-section">
-                    <h3><i class="fas fa-undo"></i> Repay & Withdraw</h3>
-                    <div class="input-grid">
-                        <div class="input-group">
-                            <label for="repay-input">Repay tGHSX</label>
-                            <div class="input-wrapper">
-                                <input type="number" id="repay-input" placeholder="0.00">
-                                <button class="max-btn" data-input="repay-input">MAX</button>
-                            </div>
-                        </div>
-                        <div class="input-group">
-                            <label for="withdraw-input">Withdraw ETH</label>
-                            <div class="input-wrapper">
-                                <input type="number" id="withdraw-input" placeholder="0.00">
-                                <button class="max-btn" data-input="withdraw-input">MAX</button>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="action-btn" id="repay-withdraw-btn"><i class="fas fa-exchange-alt"></i> Repay & Withdraw</button>
-                </div>
-                <div class="transaction-history-link">
-                    <a href="transactions.html"><i class="fas fa-history"></i> View Transaction History</a>
-                </div>
-            </div>
-
-            <!-- Mint tGHSX Card -->
-            <div class="card mint-card">
-                <div class="card-header">
-                    <h2><i class="fas fa-coins"></i> Mint tGHSX</h2>
-                </div>
-                <div class="price-display">
-                    <span>1 ETH = <span id="eth-price">GH₵ 0.00</span></span>
-                    <span class="price-change positive">(+0.0%)</span>
-                    <span class="last-updated">Updated: ----</span>
-                </div>
-                <div class="collateral-selector">
-                    <div class="token-info">
-                        <i class="fab fa-ethereum"></i>
-                        <span>ETH</span>
-                    </div>
-                    <div class="balance-info">
-                        Balance: <span id="user-balance">0.00</span>
-                    </div>
-                </div>
-                <div class="percentage-buttons">
-                    <button class="percent-btn" data-value="0.25">25%</button>
-                    <button class="percent-btn" data-value="0.50">50%</button>
-                    <button class="percent-btn" data-value="0.75">75%</button>
-                    <button class="percent-btn" data-value="1.00">100%</button>
-                </div>
-                <div class="input-group">
-                    <label for="collateral-amount-input">Collateral Amount (ETH)</label>
-                    <div class="input-wrapper">
-                        <input type="number" id="collateral-amount-input" placeholder="0.00">
-                        <button class="max-btn" data-input="collateral-amount-input">MAX</button>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label for="mint-amount-input">tGHSX to Mint</label>
-                    <div class="input-wrapper">
-                        <input type="number" id="mint-amount-input" placeholder="0.00">
-                        <button class="max-btn" data-input="mint-amount-input">MAX</button>
-                    </div>
-                    <small>Max 0.00 tGHSX</small>
-                </div>
-                <div class="output-display">
-                    <span>Resulting Ratio</span>
-                    <span id="resulting-ratio">--%</span>
-                </div>
-                <div class="output-display">
-                    <span>Exchange Rate</span>
-                    <span id="exchange-rate">1 ETH = GH₵ 0.00</span>
-                </div>
-                <button class="action-btn" id="main-action-btn"><i class="fas fa-wallet"></i> Connect Wallet First</button>
-            </div>
-        </main>
     </div>
 
-    <!-- Modals and Toasts will be here -->
     <div id="toastNotification" class="toast"></div>
-    <div id="connectionModal" class="modal-overlay">
-        <!-- ... (modal content from previous versions) ... -->
-    </div>
 
+    <!-- Connection Modal -->
+    <div id="connectionModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 class="modal-title">Connect a Wallet</h3>
+            <div class="connection-options">
+                <button id="connectMetaMaskBtn" class="connection-btn"><i class="fas fa-desktop"></i> Browser Wallet</button>
+                <button id="connectWalletConnectBtn" class="connection-btn"><i class="fas fa-qrcode"></i> WalletConnect</button>
+            </div>
+            <button id="cancelConnectionBtn" class="btn modal-btn btn-secondary">Cancel</button>
+        </div>
+    </div>
+    
     <script type="module" src="../script/shared-wallet.js" defer></script>
     <script type="module" src="../script/index.js" defer></script>
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            tablinks = document.getElementsByClassName("tab-link");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+    </script>
 </body>
 </html>
