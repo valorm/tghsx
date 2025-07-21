@@ -3,7 +3,7 @@ const { ethers, network } = require("hardhat");
 
 async function main() {
     // Load addresses dynamically from the deployment artifact
-    const deployment = require("../deployments/localhost-deployment.json");
+    const deployment = require("../deployments/deployment.json");
     const TOKEN_ADDRESS = deployment.contracts.TGHSXToken;
 
     console.log("🎁 Testing Auto-Mint functionality on the TGHSXToken contract...");

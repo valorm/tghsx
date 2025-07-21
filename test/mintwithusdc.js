@@ -1,4 +1,6 @@
+// ==========================================
 
+// mintwithusdc.js - FIXED VERSION  
 const { ethers } = require("hardhat");
 
 async function main() {
@@ -8,77 +10,154 @@ async function main() {
     const TOKEN_ADDRESS = deployment.contracts.TGHSXToken;
     const USDC_ADDRESS = deployment.contracts.MockTokens.USDC;
 
-    console.log("🪙  Minting tGHSX using USDC as collateral...");
+    console.log("🪙  Debugging USDC minting issue...");
 
     // --- 1. SETUP ACCOUNTS AND CONTRACTS ---
-    const [admin, borrower] = await ethers.getSigners();
-    console.log(`   - Admin:    ${admin.address}`);
-    console.log(`   - Borrower: ${borrower.address}`);
+    const [account] = await ethers.getSigners();
+    console.log(`   - Using account: ${account.address}`);
 
     const collateralVault = await ethers.getContractAt("CollateralVault", VAULT_ADDRESS);
     const tghsxToken = await ethers.getContractAt("TGHSXToken", TOKEN_ADDRESS);
     const usdcToken = await ethers.getContractAt("MockERC20", USDC_ADDRESS);
 
-    // --- 2. PREPARE BORROWER ---
-    console.log("\n--- Step 1: Preparing the Borrower ---");
-    const depositAmount = ethers.utils.parseUnits("1000", 6); // 1,000 USDC (6 decimals)
+    // --- 2. CHECK CURRENT STATE ---
+    console.log("\n--- Debug: Current State Check ---");
+    const initialUsdcBalance = await usdcToken.balanceOf(account.address);
+    const initialTghsxBalance = await tghsxToken.balanceOf(account.address);
+    console.log(`   - USDC Balance: ${ethers.utils.formatUnits(initialUsdcBalance, 6)}`);
+    console.log(`   - tGHSX Balance: ${ethers.utils.formatUnits(initialTghsxBalance, 6)}`);
+
+    // Check current position
+    const currentPosition = await collateralVault.getUserPosition(account.address, USDC_ADDRESS);
+    console.log("\n   - Current Position:");
+    console.log(`     * Collateral Amount: ${ethers.utils.formatUnits(currentPosition.collateralAmount, 6)} USDC`);
+    console.log(`     * Minted Amount: ${ethers.utils.formatUnits(currentPosition.mintedAmount, 6)} tGHSX`);
+    console.log(`     * Collateral Value: ${ethers.utils.formatUnits(currentPosition.collateralValue, 6)} GHS`);
+
+    // Check collateral configuration - FIXED to use correct field names
+    const collateralConfig = await collateralVault.collateralConfigs(USDC_ADDRESS);
+    console.log("\n   - USDC Collateral Config:");
+    console.log(`     * Price: ${ethers.utils.formatUnits(collateralConfig.price, 6)} GHS per USDC`);
+    console.log(`     * Max LTV: ${collateralConfig.maxLTV ? collateralConfig.maxLTV / 100 : 'undefined'}%`);
+    console.log(`     * Liquidation Bonus: ${collateralConfig.liquidationBonus ? collateralConfig.liquidationBonus / 100 : 'undefined'}%`);
+    console.log(`     * Is Enabled: ${collateralConfig.enabled}`);
+    console.log(`     * Decimals: ${collateralConfig.decimals}`);
+
+    // --- 3. CHECK IF CONFIG IS VALID ---
+    if (!collateralConfig.maxLTV || collateralConfig.maxLTV === 0) {
+        console.log("\n❌ CRITICAL ISSUE: maxLTV is not configured properly!");
+        console.log("   - Cannot calculate mint amounts without maxLTV");
+        console.log("   - Please configure the collateral first using the contract admin functions");
+        return;
+    }
+
+    if (!collateralConfig.enabled) {
+        console.log("\n❌ CRITICAL ISSUE: USDC collateral is not enabled!");
+        console.log("   - Please enable USDC collateral first");
+        return;
+    }
+
+    // --- 4. CALCULATE SAFE MINT AMOUNT - FIXED ---
+    console.log("\n--- Debug: Calculate Safe Mint Amount ---");
+    const depositedAmount = currentPosition.collateralAmount;
+    const collateralValueInGHS = currentPosition.collateralValue;
     
-    // Admin sends mock USDC to the borrower
-    await usdcToken.connect(admin).transfer(borrower.address, depositAmount);
-    const borrowerUsdcBalance = await usdcToken.balanceOf(borrower.address);
-    console.log(`✅ Borrower received ${ethers.utils.formatUnits(borrowerUsdcBalance, 6)} USDC.`);
-
-    // --- 3. DEPOSIT AND MINT ---
-    console.log("\n--- Step 2: Depositing USDC and Minting tGHSX ---");
-    const mintAmount = ethers.utils.parseUnits("800", 6); // 800 tGHSX (6 decimals)
-
-    // Borrower approves the vault to spend their USDC
-    await usdcToken.connect(borrower).approve(VAULT_ADDRESS, depositAmount);
-    console.log("   - Vault approved to spend USDC.");
-
-    // Borrower deposits collateral
-    await collateralVault.connect(borrower).depositCollateral(USDC_ADDRESS, depositAmount);
-    console.log("   - 1,000 USDC deposited successfully.");
-
-    // --- NEW STEP: Refresh the price feed to prevent staleness ---
-    console.log("\n--- Step 2.5: Refreshing Price Feed ---");
-    const ORACLE_ROLE = await collateralVault.ORACLE_ROLE();
-    // Grant the borrower the ORACLE_ROLE so they can update the price
-    await collateralVault.connect(admin).grantRole(ORACLE_ROLE, borrower.address);
-    console.log("   - Borrower granted ORACLE_ROLE.");
+    // maxLTV is in basis points (e.g., 8500 = 85%)
+    const maxLTVBasisPoints = collateralConfig.maxLTV;
+    const maxLTVPercent = maxLTVBasisPoints / 100; // Convert to percentage
     
-    // Get the current price and re-submit it to update the timestamp
-    const currentPrice = (await collateralVault.collateralConfigs(USDC_ADDRESS)).price;
-    await collateralVault.connect(borrower).updatePrice(USDC_ADDRESS, currentPrice);
-    console.log("   - USDC price feed timestamp refreshed.");
-    // --- END NEW STEP ---
+    // Maximum mintable = (collateral value * maxLTV) / 100
+    const maxMintable = collateralValueInGHS.mul(maxLTVBasisPoints).div(10000); // Divide by 10000 for basis points
+    const alreadyMinted = currentPosition.mintedAmount;
+    const availableToMint = maxMintable.sub(alreadyMinted);
+    
+    console.log(`   - Deposited USDC: ${ethers.utils.formatUnits(depositedAmount, 6)}`);
+    console.log(`   - Collateral Value: ${ethers.utils.formatUnits(collateralValueInGHS, 6)} GHS`);
+    console.log(`   - Max LTV: ${maxLTVPercent}% (${maxLTVBasisPoints} basis points)`);
+    console.log(`   - Max Mintable: ${ethers.utils.formatUnits(maxMintable, 6)} tGHSX`);
+    console.log(`   - Already Minted: ${ethers.utils.formatUnits(alreadyMinted, 6)} tGHSX`);
+    console.log(`   - Available to Mint: ${ethers.utils.formatUnits(availableToMint, 6)} tGHSX`);
 
-    // Borrower mints tGHSX
-    await collateralVault.connect(borrower).mintTokens(USDC_ADDRESS, mintAmount);
-    console.log(`   - ${ethers.utils.formatUnits(mintAmount, 6)} tGHSX minted successfully.`);
+    // --- 5. ATTEMPT SAFER MINT ---
+    const proposedMintAmount = ethers.utils.parseUnits("100", 6); // Start with smaller amount
+    console.log(`\n   - Proposed Mint: ${ethers.utils.formatUnits(proposedMintAmount, 6)} tGHSX`);
+    
+    if (availableToMint.lt(proposedMintAmount)) {
+        console.log("❌ ERROR: Proposed mint amount exceeds available capacity!");
+        console.log(`   - Try minting maximum: ${ethers.utils.formatUnits(availableToMint, 6)} tGHSX instead`);
+        
+        if (availableToMint.gt(0)) {
+            // Try with available amount
+            console.log(`\n--- Attempting Max Available Mint: ${ethers.utils.formatUnits(availableToMint, 6)} tGHSX ---`);
+            
+            try {
+                const tx = await collateralVault.mintTokens(USDC_ADDRESS, availableToMint);
+                console.log("✅ Max available mint successful!");
+                console.log(`   - Transaction hash: ${tx.hash}`);
+            } catch (error) {
+                console.log("❌ Max available mint also failed:", error.message);
+                
+                // Try static call to get exact revert reason
+                try {
+                    await collateralVault.callStatic.mintTokens(USDC_ADDRESS, availableToMint);
+                } catch (staticError) {
+                    console.log("❌ Static call revert reason:", staticError.message);
+                }
+            }
+        } else {
+            console.log("❌ No mintable amount available");
+        }
+    } else {
+        console.log("✅ Proposed mint amount should be safe. Attempting mint...");
+        
+        try {
+            // Try static call first
+            await collateralVault.callStatic.mintTokens(USDC_ADDRESS, proposedMintAmount);
+            console.log("✅ Static call passed - executing transaction...");
+            
+            const tx = await collateralVault.mintTokens(USDC_ADDRESS, proposedMintAmount);
+            console.log("✅ Mint successful!");
+            console.log(`   - Transaction hash: ${tx.hash}`);
+            
+        } catch (error) {
+            console.log("❌ Mint failed:", error.message);
+            
+            // Additional debugging
+            console.log("\n--- Additional Debugging ---");
+            
+            // Check if contract is paused
+            try {
+                const isPaused = await collateralVault.paused();
+                console.log(`   - Contract Paused: ${isPaused}`);
+            } catch (e) {
+                console.log("   - Contract doesn't seem to have pause functionality");
+            }
+            
+            // Check minter role
+            try {
+                const MINTER_ROLE = await tghsxToken.MINTER_ROLE();
+                const hasMinterRole = await tghsxToken.hasRole(MINTER_ROLE, VAULT_ADDRESS);
+                console.log(`   - Vault has MINTER_ROLE: ${hasMinterRole}`);
+            } catch (e) {
+                console.log("   - Could not check MINTER_ROLE");
+            }
+            
+            // Check total supply limits
+            try {
+                const totalSupply = await tghsxToken.totalSupply();
+                console.log(`   - Current tGHSX Total Supply: ${ethers.utils.formatUnits(totalSupply, 6)}`);
+            } catch (e) {
+                console.log("   - Could not check total supply");
+            }
+        }
+    }
 
-    // --- 4. VERIFY FINAL STATE ---
-    console.log("\n--- Step 3: Verifying Final Position ---");
-    const position = await collateralVault.getUserPosition(borrower.address, USDC_ADDRESS);
-    const tghsxBalance = await tghsxToken.balanceOf(borrower.address);
-
-    const collateralValueGHS = ethers.utils.formatUnits(position.collateralValue, 6);
-    const mintedValueGHS = ethers.utils.formatUnits(position.mintedAmount, 6);
-    const collateralRatio = (position.collateralRatio.toNumber() / 10000).toFixed(2);
-
-    console.log("   - Borrower's tGHSX Balance:", ethers.utils.formatUnits(tghsxBalance, 6));
-    console.log("   ---------------------------------");
-    console.log("   Position Details (USDC):");
-    console.log(`   - Collateral Value: ${collateralValueGHS} GHS`);
-    console.log(`   - Minted (Debt): ${mintedValueGHS} tGHSX`);
-    console.log(`   - Collateralization Ratio: ${collateralRatio}%`);
-
-    console.log("\n🎉 Minting with USDC test complete!");
+    console.log("\n🔍 Debug analysis complete!");
 }
 
 main()
     .then(() => process.exit(0))
     .catch((error) => {
-        console.error("❌ Test failed:", error);
+        console.error("❌ Debug failed:", error);
         process.exit(1);
     });

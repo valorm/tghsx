@@ -10,11 +10,11 @@ async function main() {
     // --- DEFINE NEW PRICES HERE (in GHS) ---
     //comment out any lines for assets you don't want to update.
     const NEW_PRICES = {
-        WETH: "27000.00",
-        WMATIC: "0.85",
-        USDC: "1.01",
-        WBTC: "960000.00"
-    };
+    WETH: "25566.170000",     // $2,450.16 USD × 10.4375 GHS
+    WMATIC: "2.650406",       // $0.2539 USD × 10.4375 GHS  
+    USDC: "10.437500",        // $1.00 USD × 10.4375 GHS
+    WBTC: "1233926.698750"    // $118,239.82 USD × 10.4375 GHS
+};
     // -----------------------------------------
 
     console.log("🔄 Refreshing all price feed timestamps in the CollateralVault...");

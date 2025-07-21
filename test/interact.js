@@ -1,4 +1,3 @@
-
 const { ethers } = require("hardhat");
 
 async function main() {
@@ -50,8 +49,21 @@ async function main() {
     console.log("   - tGHSX Minted:", ethers.utils.formatUnits(position.mintedAmount, 6), "tGHSX");
     console.log(`   - Collateral Value: $${ethers.utils.formatUnits(position.collateralValue, 6)} (Expected: ~$${expectedCollateralValue})`);
     
-    const displayRatio = (position.collateralRatio.toNumber() / 10000).toFixed(2);
-    console.log("   - Collateralization Ratio:", displayRatio, "%");
+    // Fix: Handle potential overflow for collateralRatio
+    let displayRatio;
+    try {
+        // Check if the ratio is max uint256 (indicates infinite/undefined)
+        if (position.collateralRatio.eq(ethers.constants.MaxUint256)) {
+            displayRatio = "Infinite";
+        } else {
+            displayRatio = (position.collateralRatio.toNumber() / 10000).toFixed(2) + "%";
+        }
+    } catch (error) {
+        // Fallback: display raw value as string
+        displayRatio = `${position.collateralRatio.toString()} (raw value - too large to convert)`;
+    }
+    
+    console.log("   - Collateralization Ratio:", displayRatio);
 
     console.log("\n🎉 Interaction with local contracts complete!");
 }
