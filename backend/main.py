@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Import all application routers, including the new ones
 from routes import auth, oracle, vault, mint, transactions, protocol, admin, liquidations, health, admin_actions
 # Import the background task for syncing vaults
-from tasks import sync_user_vaults
+from task import sync_user_vaults
 
 # --- Initialize FastAPI App ---
 app = FastAPI(
