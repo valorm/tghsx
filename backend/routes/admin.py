@@ -7,12 +7,13 @@ from web3 import Web3
 from web3.middleware import geth_poa_middleware
 
 from services.web3_client import get_web3_provider
-from services.supabase_client import get_supabase_admin_client  # FIX: import supabase admin client
+from services.supabase_client import get_supabase_admin_client
 from utils.utils import is_admin_user, load_contract_abi
 from services.web3_service import send_admin_transaction
 
 # --- Router and Environment Setup ---
-router = APIRouter(prefix="/admin", tags=["Admin"])
+# FIX: Removed prefix="/admin" to prevent double prefixing. main.py now handles this.
+router = APIRouter(tags=["Admin"])
 COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
 COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
 
