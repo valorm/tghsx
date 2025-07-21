@@ -1,81 +1,139 @@
-# In /backend/main.py
+# In /backend/routes/admin.py
 
-import asyncio
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-import logging
+import os
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, validator
+from typing import Dict, Any, List
+from web3 import Web3
+from web3.middleware import geth_poa_middleware
 
-# --- Setup Logging ---
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from services.web3_client import get_web3_provider
+from utils.utils import is_admin_user, load_contract_abi
+from services.web3_service import send_admin_transaction
+from services.supabase_client import get_supabase_admin_client # Added for admin actions
 
-logger.info("Starting main.py: Loading modules...")
+# --- Router and Environment Setup ---
+router = APIRouter()
+COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
+COLLATERAL_VAULT_ABI = load_contract_abi("abi/CollateralVault.json")
 
-try:
-    # Import all application routers
-    from routes import auth, oracle, vault, mint, transactions, protocol, admin, liquidations, health, admin_actions
-    # Import the background task for syncing vaults
-    from task import sync_user_vaults
-    logger.info("Successfully imported all routes and tasks.")
-except ImportError as e:
-    logger.critical(f"Failed to import a module. This is a critical error. Details: {e}")
+# --- Constants for Validation ---
+PRECISION = 10**6
+MAX_SINGLE_MINT = 1000 * PRECISION
+MAX_BONUS_MULTIPLIER = 5000
+MAX_HOLD_TIME = 86400
+MIN_COLLATERAL_RATIO_VALUE = 150
 
+# --- Pydantic Models ---
+class AutoMintConfigPayload(BaseModel):
+    baseReward: float
+    bonusMultiplier: int
+    minHoldTime: int
+    collateralRequirement: float
 
-# --- Initialize FastAPI App ---
-app = FastAPI(
-    title="tGHSX Backend API",
-    description="API for managing the tGHSX stablecoin protocol.",
-    version="1.0.3",
-)
+    @validator('baseReward')
+    def v_base_reward(cls, v):
+        if v <= 0 or (v * PRECISION) > MAX_SINGLE_MINT:
+            raise ValueError(f"Base Reward must be > 0 and <= {MAX_SINGLE_MINT / PRECISION}")
+        return v
+    # ... (add other validators from previous version if needed) ...
 
-# --- Startup Event Handler ---
-@app.on_event("startup")
-async def startup_event():
-    """On application startup, create the background vault sync task."""
-    logger.info("Application startup: Starting background task for user vault synchronization...")
-    asyncio.create_task(sync_user_vaults())
+class MintRequest(BaseModel):
+    id: str
+    user_id: str
+    collateral_address: str
+    mint_amount: str
+    status: str
+    created_at: str
 
+# --- Admin Endpoints from admin.py ---
 
-# --- CORS Middleware ---
-origins = [
-    "https://tghsx.vercel.app",
-    "http://localhost",
-    "http://localhost:3000",
-    "http://localhost:8080",
-]
+@router.get("/status", response_model=Dict[str, Any], dependencies=[Depends(is_admin_user)])
+async def get_contract_status():
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
+        status_data = vault_contract.functions.getVaultStatus().call()
+        return {
+            "totalMintedGlobal": str(status_data[0]), "globalDailyMinted": str(status_data[1]),
+            "globalDailyRemaining": str(status_data[2]), "isAutoMintEnabled": status_data[3],
+            "isPaused": status_data[4], "totalCollateralTypes": status_data[5]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch contract status: {str(e)}")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-logger.info("CORS middleware configured.")
+@router.post("/pause", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
+async def pause_contract():
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
+        function_call = vault_contract.functions.emergencyPause()
+        tx_hash = send_admin_transaction(function_call)
+        return {"message": "Protocol paused successfully.", "transactionHash": tx_hash}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to pause protocol: {str(e)}")
 
-# --- API Routers ---
-try:
-    logger.info("Including API routers...")
-    app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-    app.include_router(admin.router, prefix="/admin", tags=["Admin"])
-    app.include_router(admin_actions.router, prefix="/admin", tags=["Admin Actions"])
-    app.include_router(mint.router, prefix="/mint", tags=["Minting"])
-    app.include_router(vault.router, prefix="/vault", tags=["User Vault"])
-    app.include_router(liquidations.router, prefix="/liquidations", tags=["Liquidations"])
-    app.include_router(oracle.router, prefix="/oracle", tags=["Price Oracle"])
-    app.include_router(protocol.router, prefix="/protocol", tags=["Protocol Health"])
-    app.include_router(transactions.router, prefix="/transactions", tags=["Transaction History"])
-    app.include_router(health.router, prefix="/health", tags=["Health Checks"])
-    logger.info("All API routers included successfully.")
-except Exception as e:
-    logger.critical(f"Failed to include a router. This is a critical error. Details: {e}")
+@router.post("/unpause", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
+async def unpause_contract():
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
+        function_call = vault_contract.functions.emergencyUnpause()
+        tx_hash = send_admin_transaction(function_call)
+        return {"message": "Protocol resumed successfully.", "transactionHash": tx_hash}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to resume protocol: {str(e)}")
 
+@router.get("/automint-config", response_model=Dict[str, Any], dependencies=[Depends(is_admin_user)])
+async def get_automint_config():
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
+        config = vault_contract.functions.autoMintConfig().call()
+        is_enabled = vault_contract.functions.autoMintEnabled().call()
+        return {
+            "isEnabled": is_enabled, "baseReward": config[0] / PRECISION,
+            "bonusMultiplier": config[1], "minHoldTime": config[2],
+            "collateralRequirement": config[3]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch auto-mint config: {str(e)}")
 
-# --- Root Endpoint ---
-@app.get("/", tags=["Root"])
-async def read_root():
-    """A welcome message for the API root."""
-    return {"message": "Welcome to the tGHSX Backend API!"}
+@router.post("/toggle-automint", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
+async def toggle_automint(enabled: bool):
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
+        function_call = vault_contract.functions.toggleAutoMint(enabled)
+        tx_hash = send_admin_transaction(function_call)
+        status_text = "enabled" if enabled else "disabled"
+        return {"message": f"Auto-Mint feature has been {status_text}.", "transactionHash": tx_hash}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to toggle Auto-Mint: {str(e)}")
 
-logger.info("main.py loaded successfully. Application is ready to be served.")
+@router.post("/update-automint-config", response_model=Dict[str, str], dependencies=[Depends(is_admin_user)])
+async def update_automint_config(payload: AutoMintConfigPayload):
+    try:
+        w3 = get_web3_provider()
+        vault_contract = w3.eth.contract(address=Web3.to_checksum_address(COLLATERAL_VAULT_ADDRESS), abi=COLLATERAL_VAULT_ABI)
+        base_reward_units = int(payload.baseReward * PRECISION)
+        function_call = vault_contract.functions.updateAutoMintConfig(
+            base_reward_units, payload.bonusMultiplier,
+            payload.minHoldTime, int(payload.collateralRequirement)
+        )
+        tx_hash = send_admin_transaction(function_call)
+        return {"message": "Auto-Mint configuration updated successfully.", "transactionHash": tx_hash}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update Auto-Mint config: {str(e)}")
 
+# --- Endpoints from admin_actions.py ---
+
+@router.get("/pending-requests", response_model=List[MintRequest], dependencies=[Depends(is_admin_user)])
+async def get_pending_mint_requests(supabase = Depends(get_supabase_admin_client)):
+    """Fetches all mint requests with a 'pending' status for the admin panel."""
+    try:
+        response = (supabase.from_("mint_requests").select("*").eq("status", "pending")
+                    .order("created_at", desc=True).execute())
+        return response.data if response.data else []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve pending mint requests: {str(e)}")
