@@ -12,7 +12,7 @@ services:
       # Blockchain & Contract Configuration
       - key: AMOY_RPC_URL
         fromGroup: tghs-env
-      # FIX: Add a premium RPC URL for better reliability
+      # Add a premium RPC URL for better reliability
       - key: ALCHEMY_AMOY_RPC_URL
         fromGroup: tghs-env
       - key: ADMIN_PRIVATE_KEY
@@ -27,7 +27,7 @@ services:
         fromGroup: tghs-env
       - key: CHAINLINK_USD_GHS_PRICE_FEED_ADDRESS
         fromGroup: tghs-env
-      - key: COINMARKETCAP_API_KEY # For fallback
+      - key: COINMARKETCAP_API_KEY # For oracle fallback
         fromGroup: tghs-env
 
       # Supabase Configuration
