@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: tghsx-backend
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app"
+    envVars:
+      # --- Environment Variable Group ---
+      # All sensitive keys are pulled from the 'tghs-env' group on Render.
+
+      # Blockchain & Contract Configuration
+      - key: AMOY_RPC_URL
+        fromGroup: tghs-env
+      # Add a premium RPC URL for better reliability
+      - key: ALCHEMY_AMOY_RPC_URL
+        fromGroup: tghs-env
+      - key: ADMIN_PRIVATE_KEY
+        fromGroup: tghs-env
+      - key: TGHSX_TOKEN_ADDRESS
+        fromGroup: tghs-env
+      - key: COLLATERAL_VAULT_ADDRESS
+        fromGroup: tghs-env
+
+      # Price Oracle Configuration
+      - key: CHAINLINK_ETH_USD_PRICE_FEED_ADDRESS
+        fromGroup: tghs-env
+      - key: CHAINLINK_USD_GHS_PRICE_FEED_ADDRESS
+        fromGroup: tghs-env
+      - key: COINMARKETCAP_API_KEY # For oracle fallback
+        fromGroup: tghs-env
+
+      # Supabase Configuration
+      - key: SUPABASE_URL
+        fromGroup: tghs-env
+      - key: SUPABASE_KEY
+        fromGroup: tghs-env
+      - key: SUPABASE_SERVICE_KEY
+        fromGroup: tghs-env
+      - key: SUPABASE_JWT_SECRET
+        fromGroup: tghs-env
+      
+      # Application Configuration
+      - key: ADMIN_USER_ID
+        fromGroup: tghs-env
+      - key: TELEGRAM_BOT_TOKEN
+        fromGroup: tghs-env
+      - key: TELEGRAM_CHAT_ID
+        fromGroup: tghs-env
