@@ -20,7 +20,9 @@ from fastapi_cache.decorator import cache
 # --- Setup ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/liquidations", tags=["Liquidations"])
+
+# FIX: Removed the redundant prefix="/liquidations" from the router definition.
+router = APIRouter(tags=["Liquidations"])
 
 # --- Environment & ABI Loading ---
 COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
@@ -133,11 +135,7 @@ async def liquidate_vault(
         tx_hash = send_admin_transaction(function_call)
         logger.info(f"Successfully submitted liquidation transaction for wallet {request.wallet_address}. Tx Hash: {tx_hash}")
         
-        # Optional: Record this admin action in a database table
-        # supabase.table("admin_actions").insert({...}).execute()
-        
         return {"message": "Liquidation transaction submitted successfully.", "transaction_hash": tx_hash}
     except Exception as e:
         logger.error(f"Failed to liquidate vault for wallet {request.wallet_address}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to liquidate vault: {str(e)}")
-
