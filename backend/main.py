@@ -4,16 +4,20 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# FIX: Import the caching library and its in-memory backend
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.inmemory import InMemoryBackend
+
 # Import all application routers
-from routes import auth, oracle, vault, mint, transactions, protocol, admin, liquidations, health, admin_actions
+from routes import auth, oracle, vault, mint, transactions, protocol, admin, liquidations, health
 # Import the background task
-from tasks import sync_user_vaults
+from task import sync_user_vaults
 
 # --- Initialize FastAPI App ---
 app = FastAPI(
     title="tGHSX Backend API",
     description="API for managing the tGHSX stablecoin protocol, including vault operations, minting, and administration.",
-    version="1.0.2",
+    version="1.0.3", # Incremented version
     contact={
         "name": "Support",
         "url": "#",
@@ -27,8 +31,12 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     """
-    On application startup, create a background task for syncing user vaults.
+    On application startup, initialize the cache and create a background task.
     """
+    # FIX: Initialize the cache with an in-memory backend. This must be done before the cache is used.
+    FastAPICache.init(InMemoryBackend(), prefix="fastapi-cache")
+    print("FastAPI cache initialized with in-memory backend.")
+    
     print("Starting background task for user vault synchronization...")
     asyncio.create_task(sync_user_vaults())
 
@@ -54,14 +62,14 @@ app.add_middleware(
 # Include all the modular router files from the /routes directory.
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
-app.include_router(admin_actions.router, prefix="/admin", tags=["Admin Actions"]) # New
+# Note: The 'admin_actions' router from a previous version is consolidated into 'admin.py'
 app.include_router(mint.router, prefix="/mint", tags=["Minting"])
 app.include_router(vault.router, prefix="/vault", tags=["User Vault"])
 app.include_router(liquidations.router, prefix="/liquidations", tags=["Liquidations"])
 app.include_router(oracle.router, prefix="/oracle", tags=["Price Oracle"])
 app.include_router(protocol.router, prefix="/protocol", tags=["Protocol Health"])
 app.include_router(transactions.router, prefix="/transactions", tags=["Transaction History"])
-app.include_router(health.router, prefix="/health", tags=["Health Checks"]) # New
+app.include_router(health.router, prefix="/health", tags=["Health Checks"])
 
 
 # --- Root Endpoint ---
