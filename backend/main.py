@@ -7,16 +7,16 @@ from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
 
 # Import all application routers
-from routes import auth, oracle, vault, mint, transactions, protocol, admin, liquidations, health, collateral # FIX: Import new collateral router
+from routes import auth, oracle, vault, mint, transactions, protocol, admin, liquidations, health, collateral
 
 # Import the background task
-from task import sync_user_vaults
+from tasks import sync_user_vaults
 
 # --- Initialize FastAPI App ---
 app = FastAPI(
     title="tGHSX Backend API",
     description="API for managing the tGHSX stablecoin protocol, including vault operations, minting, and administration.",
-    version="1.1.0", # Incremented version
+    version="1.1.1", # Incremented version
 )
 
 # --- Startup Event Handler ---
@@ -52,11 +52,13 @@ app.include_router(vault.router, prefix="/vault", tags=["User Vault"])
 app.include_router(liquidations.router, prefix="/liquidations", tags=["Liquidations"])
 app.include_router(oracle.router, prefix="/oracle", tags=["Price Oracle"])
 app.include_router(protocol.router, prefix="/protocol", tags=["Protocol Health"])
-app.include_router(collateral.router, prefix="/protocol", tags=["Protocol Info"]) # FIX: Add new collateral router
+# FIX: Changed prefix to "/" to match the deployed frontend's request URL
+app.include_router(collateral.router, prefix="", tags=["Collaterals"])
 app.include_router(transactions.router, prefix="/transactions", tags=["Transaction History"])
 app.include_router(health.router, prefix="/health", tags=["Health Checks"])
 
 # --- Root Endpoint ---
 @app.get("/", tags=["Root"])
 async def read_root():
+    """A welcome message for the API root."""
     return {"message": "Welcome to the tGHSX Backend API!"}
