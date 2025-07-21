@@ -11,7 +11,9 @@ from fastapi.security import OAuth2PasswordBearer
 from services.supabase_client import get_supabase_client, get_supabase_admin_client
 from utils.utils import create_access_token
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+# FIX: Removed the redundant prefix="/auth" from the router definition.
+# main.py now controls the prefix.
+router = APIRouter(tags=["Authentication"])
 
 # --- Environment Variables ---
 ADMIN_USER_ID = os.getenv("ADMIN_USER_ID")
@@ -87,4 +89,3 @@ async def login_user(request: UserLogin, db: Client = Depends(get_supabase_clien
         raise HTTPException(status_code=401, detail="Invalid credentials.")
     except AuthApiError as e:
         raise HTTPException(status_code=401, detail=str(e))
-
