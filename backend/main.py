@@ -10,7 +10,7 @@ from fastapi_cache.backends.inmemory import InMemoryBackend
 from routes import auth, oracle, vault, mint, transactions, protocol, admin, liquidations, health, collateral
 
 # Import the background task
-from tasks import sync_user_vaults
+from task import sync_user_vaults
 
 # --- Initialize FastAPI App ---
 app = FastAPI(
