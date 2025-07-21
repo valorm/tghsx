@@ -15,7 +15,8 @@ from utils.utils import load_contract_abi, get_current_user, is_admin_user
 from services.web3_service import send_admin_transaction
 from web3 import Web3
 
-router = APIRouter(prefix="/mint", tags=["Minting"])
+# FIX: Removed the redundant prefix="/mint" from the router definition.
+router = APIRouter(tags=["Minting"])
 
 # --- Load Contract Details ---
 COLLATERAL_VAULT_ADDRESS = os.getenv("COLLATERAL_VAULT_ADDRESS")
