@@ -6,7 +6,8 @@ from typing import Dict, Any
 # Assuming the service is in the services directory
 from services.oracle_service import get_eth_ghs_price
 
-router = APIRouter(prefix="/oracle", tags=["Oracle"])
+# FIX: Removed the redundant prefix="/oracle" from the router definition.
+router = APIRouter(tags=["Oracle"])
 
 @router.get("/price", response_model=Dict[str, Any])
 def get_oracle_price():
@@ -30,4 +31,3 @@ def get_oracle_price():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch oracle price: {str(e)}"
         )
-

@@ -9,7 +9,6 @@ from web3 import Web3
 from web3.middleware import geth_poa_middleware
 from web3.exceptions import ContractLogicError, Web3Exception
 
-# FIX: Use the more reliable provider with fallback capabilities
 from .web3_client import get_web3_provider_with_fallback as get_web3_provider
 
 # --- Setup ---
@@ -18,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 # --- Environment Variables & Validation ---
 ADMIN_PRIVATE_KEY = os.getenv("ADMIN_PRIVATE_KEY")
-
-# FIX: Add validation for the private key format on module load
 if not ADMIN_PRIVATE_KEY or not re.match(r'^0x[0-9a-fA-F]{64}$', ADMIN_PRIVATE_KEY):
     raise ValueError("Invalid or missing ADMIN_PRIVATE_KEY. Must be a 64-character hexadecimal string starting with '0x'.")
 
-# FIX: Add retry logic and a longer timeout for the entire transaction process
+# FIX: Define a minimum priority fee (tip) to meet network requirements (2.5 Gwei)
+MIN_PRIORITY_FEE = 25000000000 
+
 @backoff.on_exception(backoff.expo, (Web3Exception, ConnectionError), max_tries=3, max_time=300)
 def send_admin_transaction(function_call: Any) -> str:
     """
@@ -42,24 +41,29 @@ def send_admin_transaction(function_call: Any) -> str:
         raise ValueError(f"Invalid ADMIN_PRIVATE_KEY: {str(e)}")
 
     try:
-        # FIX: Use maxPriorityFeePerGas and maxFeePerGas for EIP-1559 compatibility
-        gas_price = w3.eth.gas_price
-        priority_fee = int(gas_price * 0.1) # Default priority fee
+        # FIX: More robust EIP-1559 gas fee calculation
         try:
             fee_history = w3.eth.fee_history(10, 'latest', reward_percentiles=[20])
             base_fee = fee_history['baseFeePerGas'][-1]
             priority_fee = fee_history['reward'][0][0]
+            
+            # Ensure the priority fee meets the network's minimum requirement
+            if priority_fee < MIN_PRIORITY_FEE:
+                logger.warning(f"Suggested priority fee ({priority_fee}) is below minimum. Using default: {MIN_PRIORITY_FEE}")
+                priority_fee = MIN_PRIORITY_FEE
+            
+            # Add a buffer to the base fee for reliability
             max_fee_per_gas = int(base_fee * 1.5 + priority_fee)
-        except Exception:
-            logger.warning("Could not fetch EIP-1559 fee history, falling back to legacy gas price.")
+        except Exception as e:
+            logger.warning(f"Could not fetch EIP-1559 fee history, falling back to legacy gas price. Error: {e}")
+            gas_price = w3.eth.gas_price
+            priority_fee = MIN_PRIORITY_FEE
             max_fee_per_gas = gas_price * 2
 
-        # FIX: Add specific error handling for gas estimation
         try:
             gas_estimate = function_call.estimate_gas({'from': admin_account.address})
         except ContractLogicError as e:
             logger.error(f"Gas estimation failed: Transaction would revert. Reason: {e}")
-            # Propagate a more user-friendly error
             if "onlyOwner" in str(e) or "AccessControl" in str(e):
                 raise ValueError("Transaction failed: Admin account lacks the required role.")
             if "PriceStale" in str(e):
@@ -80,7 +84,6 @@ def send_admin_transaction(function_call: Any) -> str:
         
         logger.info(f"Admin transaction sent: {tx_hash.hex()}")
         
-        # FIX: Increased timeout for waiting for receipt
         tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
         
         if tx_receipt['status'] == 0:
