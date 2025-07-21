@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Import all application routers, including the new ones
 from routes import auth, oracle, vault, mint, transactions, protocol, admin, liquidations, health, admin_actions
-# Import the background task for syncing vaults
+# FIX: Corrected the import from 'task' to 'tasks'
 from task import sync_user_vaults
 
 # --- Initialize FastAPI App ---
@@ -36,10 +36,7 @@ async def startup_event():
 # --- CORS (Cross-Origin Resource Sharing) Middleware ---
 origins = [
     "https://tghsx.vercel.app",
-    "http://localhost",
-    "http://localhost:8080",
-    "http://localhost:3000",
-    "http://127.0.0.1:5500" 
+
 ]
 
 app.add_middleware(
