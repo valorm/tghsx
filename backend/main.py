@@ -4,10 +4,10 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Import all application routers
+# Import all application routers, including the new ones
 from routes import auth, oracle, vault, mint, transactions, protocol, admin, liquidations, health, admin_actions
-# Import the background task
-from task import sync_user_vaults
+# Import the background task for syncing vaults
+from tasks import sync_user_vaults
 
 # --- Initialize FastAPI App ---
 app = FastAPI(
@@ -29,7 +29,7 @@ async def startup_event():
     """
     On application startup, create a background task for syncing user vaults.
     """
-    print("Starting background task for user vault synchronization...")
+    print("Application startup: Starting background task for user vault synchronization...")
     asyncio.create_task(sync_user_vaults())
 
 
@@ -54,14 +54,14 @@ app.add_middleware(
 # Include all the modular router files from the /routes directory.
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
-app.include_router(admin_actions.router, prefix="/admin", tags=["Admin Actions"]) # New
+app.include_router(admin_actions.router, prefix="/admin", tags=["Admin Actions"])
 app.include_router(mint.router, prefix="/mint", tags=["Minting"])
 app.include_router(vault.router, prefix="/vault", tags=["User Vault"])
 app.include_router(liquidations.router, prefix="/liquidations", tags=["Liquidations"])
 app.include_router(oracle.router, prefix="/oracle", tags=["Price Oracle"])
 app.include_router(protocol.router, prefix="/protocol", tags=["Protocol Health"])
 app.include_router(transactions.router, prefix="/transactions", tags=["Transaction History"])
-app.include_router(health.router, prefix="/health", tags=["Health Checks"]) # New
+app.include_router(health.router, prefix="/health", tags=["Health Checks"])
 
 
 # --- Root Endpoint ---
