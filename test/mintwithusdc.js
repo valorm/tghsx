@@ -43,7 +43,30 @@ async function main() {
     console.log(`     * Is Enabled: ${collateralConfig.enabled}`);
     console.log(`     * Decimals: ${collateralConfig.decimals}`);
 
-    // --- 3. CHECK IF CONFIG IS VALID ---
+    // --- 3. CHECK USER/Vault LIMITS ---
+    console.log("\n--- Debug: Mint Limits ---");
+    try {
+        const mintStatus = await collateralVault.getUserMintStatus(account.address);
+        console.log(`   - Daily Minted: ${ethers.utils.formatUnits(mintStatus.dailyMinted, 6)} tGHSX`);
+        console.log(`   - Remaining Daily: ${ethers.utils.formatUnits(mintStatus.remainingDaily, 6)} tGHSX`);
+        console.log(`   - Cooldown Remaining: ${mintStatus.cooldownRemaining.toString()}s`);
+        console.log(`   - Daily Mint Count: ${mintStatus.dailyMintCount.toString()}`);
+        console.log(`   - Remaining Mints: ${mintStatus.remainingMints.toString()}`);
+    } catch (error) {
+        console.log("   - Could not fetch user mint status:", error.message);
+    }
+
+    try {
+        const vaultStatus = await collateralVault.getVaultStatus();
+        console.log(`   - Global Daily Minted: ${ethers.utils.formatUnits(vaultStatus.dailyMinted, 6)} tGHSX`);
+        console.log(`   - Global Daily Remaining: ${ethers.utils.formatUnits(vaultStatus.globalDailyRemaining, 6)} tGHSX`);
+        console.log(`   - AutoMint Enabled: ${vaultStatus.autoMintActive}`);
+        console.log(`   - Contract Paused: ${vaultStatus.contractPaused}`);
+    } catch (error) {
+        console.log("   - Could not fetch vault status:", error.message);
+    }
+
+    // --- 4. CHECK IF CONFIG IS VALID ---
     if (!collateralConfig.maxLTV || collateralConfig.maxLTV === 0) {
         console.log("\n❌ CRITICAL ISSUE: maxLTV is not configured properly!");
         console.log("   - Cannot calculate mint amounts without maxLTV");
@@ -57,7 +80,7 @@ async function main() {
         return;
     }
 
-    // --- 4. CALCULATE SAFE MINT AMOUNT - FIXED ---
+    // --- 5. CALCULATE SAFE MINT AMOUNT - FIXED ---
     console.log("\n--- Debug: Calculate Safe Mint Amount ---");
     const depositedAmount = currentPosition.collateralAmount;
     const collateralValueInGHS = currentPosition.collateralValue;
@@ -69,7 +92,7 @@ async function main() {
     // Maximum mintable = (collateral value * maxLTV) / 100
     const maxMintable = collateralValueInGHS.mul(maxLTVBasisPoints).div(10000); // Divide by 10000 for basis points
     const alreadyMinted = currentPosition.mintedAmount;
-    const availableToMint = maxMintable.sub(alreadyMinted);
+    const availableToMint = alreadyMinted.gt(maxMintable) ? ethers.constants.Zero : maxMintable.sub(alreadyMinted);
     
     console.log(`   - Deposited USDC: ${ethers.utils.formatUnits(depositedAmount, 6)}`);
     console.log(`   - Collateral Value: ${ethers.utils.formatUnits(collateralValueInGHS, 6)} GHS`);
@@ -78,7 +101,7 @@ async function main() {
     console.log(`   - Already Minted: ${ethers.utils.formatUnits(alreadyMinted, 6)} tGHSX`);
     console.log(`   - Available to Mint: ${ethers.utils.formatUnits(availableToMint, 6)} tGHSX`);
 
-    // --- 5. ATTEMPT SAFER MINT ---
+    // --- 6. ATTEMPT SAFER MINT ---
     const proposedMintAmount = ethers.utils.parseUnits("100", 6); // Start with smaller amount
     console.log(`\n   - Proposed Mint: ${ethers.utils.formatUnits(proposedMintAmount, 6)} tGHSX`);
     
