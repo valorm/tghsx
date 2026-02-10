@@ -1,0 +1,8 @@
+{
+  "name": "tGHSX Stablecoin Protocol Dashboard",
+  "description": "A high-performance DeFi dashboard for the tGHSX Stablecoin Protocol on Polygon Amoy, featuring collateral management and AI-powered risk advisory grounded in real-time market data.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
