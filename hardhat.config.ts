@@ -22,11 +22,11 @@ if (!POLYGONSCAN_API_KEY) {
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   solidity: {
-    version: "0.8.26", 
+    version: "0.8.26",
     settings: {
       optimizer: {
         enabled: true,
-        runs: 200, 
+        runs: 200,
       },
     },
   },
@@ -68,13 +68,13 @@ module.exports = {
   },
 
   // Gas usage tracking
-  
   gasReporter: {
     enabled: true,
     currency: "USD",
     coinmarketcap: COINMARKETCAP_API_KEY || "",
+    token: "MATIC",
+    gasPriceApi: "https://api.polygonscan.com/api?module=proxy&action=eth_gasPrice",
     showTimeSpent: true,
     excludeContracts: [],
   },
- 
 };

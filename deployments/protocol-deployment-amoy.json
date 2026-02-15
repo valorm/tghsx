@@ -1,7 +1,7 @@
 {
   "network": "amoy",
   "contracts": {
-    "TGHSXToken": "0xb04093d34F5feC6DE685B8684F3e2086dd866a50",
-    "CollateralVault": "0xF681Ba510d3C93A49a7AB2d02d9697BB2B0091FE"
+    "TGHSXToken": "0xB54e613d9fD21321B22C77Fa817403f8b5760a9B",
+    "CollateralVault": "0x524C16E0dbB6bCc6bb66D4D054847B4Bcb97B779"
   }
 }
