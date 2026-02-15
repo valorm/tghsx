@@ -15,6 +15,11 @@ interface ITGHSXToken {
     function balanceOf(address account) external view returns (uint256);
 }
 
+interface IWrappedNative {
+    function deposit() external payable;
+    function withdraw(uint256 amount) external;
+}
+
 contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
     using SafeERC20 for IERC20;
     
@@ -37,6 +42,7 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
     uint256 public constant MAX_MINTS_PER_USER_PER_DAY = 20;
     
     ITGHSXToken public immutable tghsxToken;
+    address public immutable wrappedNativeToken;
     
     struct CollateralConfig {
         bool enabled;
@@ -107,6 +113,7 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
     error NotLiquidatable();
     error InvalidCollateral();
     error PositionNotFound();
+    error NativeTransferFailed();
     
     modifier onlyAuthorizedCollateral(address collateral) {
         if (!authorizedCollaterals[collateral]) revert InvalidCollateral();
@@ -128,8 +135,10 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
         _;
     }
     
-    constructor(address _tghsxToken) {
+    constructor(address _tghsxToken, address _wrappedNativeToken) {
+        if (_wrappedNativeToken == address(0)) revert InvalidCollateral();
         tghsxToken = ITGHSXToken(_tghsxToken);
+        wrappedNativeToken = _wrappedNativeToken;
         
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(VAULT_ADMIN_ROLE, msg.sender);
@@ -145,6 +154,8 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
         currentDay = uint32(block.timestamp / 86400);
         autoMintEnabled = true;
     }
+
+    receive() external payable {}
     
     function addCollateral(
         address collateral,
@@ -207,6 +218,29 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
         
         emit CollateralDeposited(msg.sender, collateral, amount);
     }
+
+    function depositNativeCollateral()
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        onlyAuthorizedCollateral(wrappedNativeToken)
+    {
+        if (msg.value == 0) revert InvalidAmount();
+
+        UserPosition storage position = userPositions[msg.sender][wrappedNativeToken];
+
+        IWrappedNative(wrappedNativeToken).deposit{value: msg.value}();
+
+        position.collateralAmount += msg.value;
+        position.lastUpdateTime = uint32(block.timestamp);
+
+        if (position.positionId == 0) {
+            position.positionId = uint32(block.timestamp);
+        }
+
+        emit CollateralDeposited(msg.sender, wrappedNativeToken, msg.value);
+    }
     
     function withdrawCollateral(address collateral, uint256 amount) 
         external 
@@ -233,6 +267,35 @@ contract CollateralVault is ReentrancyGuard, AccessControl, Pausable {
         IERC20(collateral).safeTransfer(msg.sender, amount);
         
         emit CollateralWithdrawn(msg.sender, collateral, amount);
+    }
+
+    function withdrawNativeCollateral(uint256 amount)
+        external
+        nonReentrant
+        whenNotPaused
+        onlyAuthorizedCollateral(wrappedNativeToken)
+        validPrice(wrappedNativeToken)
+    {
+        UserPosition storage position = userPositions[msg.sender][wrappedNativeToken];
+
+        if (position.collateralAmount < amount) revert InsufficientCollateral();
+
+        if (position.mintedAmount > 0) {
+            uint256 remainingCollateral = position.collateralAmount - amount;
+            uint256 collateralValue = _getCollateralValue(wrappedNativeToken, remainingCollateral);
+            uint256 requiredCollateral = (position.mintedAmount * MIN_COLLATERAL_RATIO) / PRECISION;
+
+            if (collateralValue < requiredCollateral) revert BelowMinimumRatio();
+        }
+
+        position.collateralAmount -= amount;
+        position.lastUpdateTime = uint32(block.timestamp);
+
+        IWrappedNative(wrappedNativeToken).withdraw(amount);
+        (bool sent, ) = payable(msg.sender).call{value: amount}("");
+        if (!sent) revert NativeTransferFailed();
+
+        emit CollateralWithdrawn(msg.sender, wrappedNativeToken, amount);
     }
     
     function mintTokens(address collateral, uint256 amount) 

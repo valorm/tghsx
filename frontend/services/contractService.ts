@@ -5,12 +5,14 @@ import { CollateralType } from '../types';
 
 const VAULT_ABI = [
   "function depositCollateral(address collateral, uint256 amount) public",
+  "function depositNativeCollateral() public payable",
   "function withdrawCollateral(address collateral, uint256 amount) public",
+  "function withdrawNativeCollateral(uint256 amount) public",
   "function mintTokens(address collateral, uint256 amount) public",
   "function burnTokens(address collateral, uint256 amount) public",
   "function liquidate(address user, address collateral) public",
-  "function getUserPosition(address user, address collateral) public view returns (uint256 depositedCollateral, uint256 mintedDebt)",
-  "function getVaultStatus() public view returns (uint256 totalCollateralValueGHS, uint256 totalMintedGHSX)"
+  "function getUserPosition(address user, address collateral) public view returns (uint256 collateralAmount, uint256 mintedAmount, uint256 collateralValue, uint256 collateralRatio, bool isLiquidatable, uint256 lastUpdateTime)",
+  "function getVaultStatus() public view returns (uint256 totalMinted, uint256 dailyMinted, uint256 globalDailyRemaining, bool autoMintActive, bool contractPaused, uint256 totalCollateralTypes)"
 ];
 
 const ERC20_ABI = [
@@ -52,10 +54,10 @@ export class ContractService {
     if (!this.provider) return { totalCollateral: 0, totalDebt: 0 };
     try {
       const vault = new ethers.Contract(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, VAULT_ABI, this.provider);
-      const [totalValue, totalDebt] = await vault.getVaultStatus();
+      const [totalMinted] = await vault.getVaultStatus();
       return {
-        totalCollateral: parseFloat(ethers.formatUnits(totalValue, 18)),
-        totalDebt: parseFloat(ethers.formatUnits(totalDebt, 6))
+        totalCollateral: 0,
+        totalDebt: parseFloat(ethers.formatUnits(totalMinted, 6))
       };
     } catch (err) {
       console.warn("Global stats unavailable:", err);
@@ -81,10 +83,15 @@ export class ContractService {
   async getTokenBalance(userAddress: string, type: CollateralType) {
     if (!this.provider) return 0;
     try {
+      if (type === CollateralType.WETH) {
+        const balance = await this.provider.getBalance(userAddress);
+        return parseFloat(ethers.formatEther(balance));
+      }
+
       const assetAddress = COLLATERAL_ADDRESSES[type];
       const token = new ethers.Contract(assetAddress, ERC20_ABI, this.provider);
       const balance = await token.balanceOf(userAddress);
-      return parseFloat(ethers.formatUnits(balance, 18));
+      return parseFloat(ethers.formatUnits(balance, type === CollateralType.USDC ? 6 : 18));
     } catch (err) {
       return 0;
     }
@@ -109,16 +116,30 @@ export class ContractService {
   async deposit(type: CollateralType, amount: number) {
     if (!this.signer) throw new Error("Reconnect wallet.");
     const vault = new ethers.Contract(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, VAULT_ABI, this.signer);
+
+    if (type === CollateralType.WETH) {
+      const tx = await vault.depositNativeCollateral({ value: ethers.parseEther(amount.toString()) });
+      return await tx.wait();
+    }
+
     const assetAddress = COLLATERAL_ADDRESSES[type];
-    const tx = await vault.depositCollateral(assetAddress, ethers.parseUnits(amount.toString(), 18));
+    const decimals = type === CollateralType.USDC ? 6 : 18;
+    const tx = await vault.depositCollateral(assetAddress, ethers.parseUnits(amount.toString(), decimals));
     return await tx.wait();
   }
 
   async withdraw(type: CollateralType, amount: number) {
     if (!this.signer) throw new Error("Reconnect wallet.");
     const vault = new ethers.Contract(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, VAULT_ABI, this.signer);
+
+    if (type === CollateralType.WETH) {
+      const tx = await vault.withdrawNativeCollateral(ethers.parseEther(amount.toString()));
+      return await tx.wait();
+    }
+
     const assetAddress = COLLATERAL_ADDRESSES[type];
-    const tx = await vault.withdrawCollateral(assetAddress, ethers.parseUnits(amount.toString(), 18));
+    const decimals = type === CollateralType.USDC ? 6 : 18;
+    const tx = await vault.withdrawCollateral(assetAddress, ethers.parseUnits(amount.toString(), decimals));
     return await tx.wait();
   }
 
