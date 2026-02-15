@@ -113,26 +113,29 @@ export class ContractService {
 
   async deposit(type: CollateralType, amount: number) {
     if (!this.signer) throw new Error("Reconnect wallet.");
+    const vaultAddress = PROTOCOL_ADDRESSES.COLLATERAL_VAULT;
     const vault = new ethers.Contract(
-      PROTOCOL_ADDRESSES.COLLATERAL_VAULT,
+      vaultAddress,
       CollateralVaultABI,
       this.signer
     );
 
     const wrappedNativeToken = '0x13c09eAa18d75947A5426CaeDdEb65922400028c';
-    const selectedToken = COLLATERAL_ADDRESSES[type];
+    const tokenAddress = COLLATERAL_ADDRESSES[type];
 
-    if (selectedToken.toLowerCase() === wrappedNativeToken.toLowerCase()) {
-      const tx = await vault.depositNativeCollateral({ value: ethers.parseEther(amount.toString()) });
+    if (tokenAddress.toLowerCase() === wrappedNativeToken.toLowerCase()) {
+      const tx = await vault.depositNativeCollateral({
+        value: ethers.parseEther(amount.toString())
+      });
       return await tx.wait();
     }
 
-    const token = new ethers.Contract(selectedToken, ERC20_ABI, this.signer);
+    const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, this.signer);
     const decimals = type === CollateralType.USDC ? 6 : 18;
     const parsedAmount = ethers.parseUnits(amount.toString(), decimals);
-    await (await token.approve(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, parsedAmount)).wait();
+    await (await tokenContract.approve(vaultAddress, parsedAmount)).wait();
 
-    const tx = await vault.depositERC20Collateral(selectedToken, parsedAmount);
+    const tx = await vault.depositERC20Collateral(tokenAddress, parsedAmount);
     return await tx.wait();
   }
 
