@@ -47,7 +47,7 @@ async def check_env_vars():
     """Verifies that all required environment variables are set."""
     required_vars = [
         "SUPABASE_URL", "SUPABASE_KEY", "SUPABASE_SERVICE_KEY", "SUPABASE_JWT_SECRET",
-        "POLYGON_AMOY_RPC_URL", "ADMIN_PRIVATE_KEY",
+        "AMOY_RPC_URL", "ADMIN_PRIVATE_KEY",
         "COLLATERAL_VAULT_ADDRESS", "TGHSX_TOKEN_ADDRESS",
         "CHAINLINK_ETH_USD_PRICE_FEED_ADDRESS",
         "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"

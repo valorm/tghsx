@@ -18,7 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, account, isS
   useEffect(() => {
     const interval = setInterval(() => {
       setGas(prev => Math.max(10, Math.min(100, prev + (Math.random() - 0.5) * 5)));
-      if (Math.random() > 0.7) setBlock(prev => prev + prev + 1); // Fixed increment logic
+      if (Math.random() > 0.7) setBlock(prev => prev + 1);
     }, 5000);
     return () => clearInterval(interval);
   }, []);
