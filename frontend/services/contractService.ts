@@ -1,20 +1,10 @@
-
 import { ethers } from 'ethers';
 import { PROTOCOL_ADDRESSES, COLLATERAL_ADDRESSES } from '../constants';
 import { CollateralType } from '../types';
+import TGHSXTokenABI from '../abis/TGHSXToken-ABI.json';
+import CollateralVaultABI from '../abis/CollateralVault-ABI.json';
 
-const VAULT_ABI = [
-  "function depositCollateral(address collateral, uint256 amount) public",
-  "function depositNativeCollateral() public payable",
-  "function withdrawCollateral(address collateral, uint256 amount) public",
-  "function withdrawNativeCollateral(uint256 amount) public",
-  "function mintTokens(address collateral, uint256 amount) public",
-  "function burnTokens(address collateral, uint256 amount) public",
-  "function liquidate(address user, address collateral) public",
-  "function getUserPosition(address user, address collateral) public view returns (uint256 collateralAmount, uint256 mintedAmount, uint256 collateralValue, uint256 collateralRatio, bool isLiquidatable, uint256 lastUpdateTime)",
-  "function getVaultStatus() public view returns (uint256 totalMinted, uint256 dailyMinted, uint256 globalDailyRemaining, bool autoMintActive, bool contractPaused, uint256 totalCollateralTypes)"
-];
-
+// Standard ERC20 ABI (minimal)
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
   "function allowance(address owner, address spender) public view returns (uint256)",
@@ -53,7 +43,11 @@ export class ContractService {
   async getVaultStats() {
     if (!this.provider) return { totalCollateral: 0, totalDebt: 0 };
     try {
-      const vault = new ethers.Contract(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, VAULT_ABI, this.provider);
+      const vault = new ethers.Contract(
+        PROTOCOL_ADDRESSES.COLLATERAL_VAULT,
+        CollateralVaultABI,
+        this.provider
+      );
       const [totalMinted] = await vault.getVaultStatus();
       return {
         totalCollateral: 0,
@@ -100,10 +94,14 @@ export class ContractService {
   async getPosition(userAddress: string, type: CollateralType) {
     if (!this.provider) return { depositedAmount: 0, mintedDebt: 0 };
     try {
-      const vault = new ethers.Contract(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, VAULT_ABI, this.provider);
+      const vault = new ethers.Contract(
+        PROTOCOL_ADDRESSES.COLLATERAL_VAULT,
+        CollateralVaultABI,
+        this.provider
+      );
       const assetAddress = COLLATERAL_ADDRESSES[type];
       const [deposited, debt] = await vault.getUserPosition(userAddress, assetAddress);
-      
+
       return {
         depositedAmount: parseFloat(ethers.formatUnits(deposited, 18)),
         mintedDebt: parseFloat(ethers.formatUnits(debt, 6))
@@ -115,7 +113,11 @@ export class ContractService {
 
   async deposit(type: CollateralType, amount: number) {
     if (!this.signer) throw new Error("Reconnect wallet.");
-    const vault = new ethers.Contract(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, VAULT_ABI, this.signer);
+    const vault = new ethers.Contract(
+      PROTOCOL_ADDRESSES.COLLATERAL_VAULT,
+      CollateralVaultABI,
+      this.signer
+    );
 
     if (type === CollateralType.WETH) {
       const tx = await vault.depositNativeCollateral({ value: ethers.parseEther(amount.toString()) });
@@ -130,7 +132,11 @@ export class ContractService {
 
   async withdraw(type: CollateralType, amount: number) {
     if (!this.signer) throw new Error("Reconnect wallet.");
-    const vault = new ethers.Contract(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, VAULT_ABI, this.signer);
+    const vault = new ethers.Contract(
+      PROTOCOL_ADDRESSES.COLLATERAL_VAULT,
+      CollateralVaultABI,
+      this.signer
+    );
 
     if (type === CollateralType.WETH) {
       const tx = await vault.withdrawNativeCollateral(ethers.parseEther(amount.toString()));
@@ -145,7 +151,11 @@ export class ContractService {
 
   async mint(type: CollateralType, amount: number) {
     if (!this.signer) throw new Error("Reconnect wallet.");
-    const vault = new ethers.Contract(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, VAULT_ABI, this.signer);
+    const vault = new ethers.Contract(
+      PROTOCOL_ADDRESSES.COLLATERAL_VAULT,
+      CollateralVaultABI,
+      this.signer
+    );
     const assetAddress = COLLATERAL_ADDRESSES[type];
     const tx = await vault.mintTokens(assetAddress, ethers.parseUnits(amount.toString(), 6));
     return await tx.wait();
@@ -153,7 +163,11 @@ export class ContractService {
 
   async burn(type: CollateralType, amount: number) {
     if (!this.signer) throw new Error("Reconnect wallet.");
-    const vault = new ethers.Contract(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, VAULT_ABI, this.signer);
+    const vault = new ethers.Contract(
+      PROTOCOL_ADDRESSES.COLLATERAL_VAULT,
+      CollateralVaultABI,
+      this.signer
+    );
     const assetAddress = COLLATERAL_ADDRESSES[type];
     const tx = await vault.burnTokens(assetAddress, ethers.parseUnits(amount.toString(), 6));
     return await tx.wait();
@@ -161,7 +175,11 @@ export class ContractService {
 
   async liquidate(targetUser: string, type: CollateralType) {
     if (!this.signer) throw new Error("Reconnect wallet.");
-    const vault = new ethers.Contract(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, VAULT_ABI, this.signer);
+    const vault = new ethers.Contract(
+      PROTOCOL_ADDRESSES.COLLATERAL_VAULT,
+      CollateralVaultABI,
+      this.signer
+    );
     const assetAddress = COLLATERAL_ADDRESSES[type];
     const tx = await vault.liquidate(targetUser, assetAddress);
     return await tx.wait();

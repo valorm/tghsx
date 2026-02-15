@@ -1,0 +1,386 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {"name": "_tghsxToken", "type": "address"},
+      {"name": "_wrappedNativeToken", "type": "address"}
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "depositCollateral",
+    "inputs": [
+      {"name": "collateral", "type": "address"},
+      {"name": "amount", "type": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "depositNativeCollateral",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "withdrawCollateral",
+    "inputs": [
+      {"name": "collateral", "type": "address"},
+      {"name": "amount", "type": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "withdrawNativeCollateral",
+    "inputs": [{"name": "amount", "type": "uint256"}],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "mintTokens",
+    "inputs": [
+      {"name": "collateral", "type": "address"},
+      {"name": "amount", "type": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "autoMint",
+    "inputs": [{"name": "collateral", "type": "address"}],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "burnTokens",
+    "inputs": [
+      {"name": "collateral", "type": "address"},
+      {"name": "amount", "type": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "liquidate",
+    "inputs": [
+      {"name": "user", "type": "address"},
+      {"name": "collateral", "type": "address"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "batchLiquidate",
+    "inputs": [
+      {"name": "users", "type": "address[]"},
+      {"name": "collaterals", "type": "address[]"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "addCollateral",
+    "inputs": [
+      {"name": "collateral", "type": "address"},
+      {"name": "initialPrice", "type": "uint128"},
+      {"name": "maxLTV", "type": "uint32"},
+      {"name": "liquidationBonus", "type": "uint32"},
+      {"name": "_decimals", "type": "uint8"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updatePrice",
+    "inputs": [
+      {"name": "collateral", "type": "address"},
+      {"name": "newPrice", "type": "uint128"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getUserPosition",
+    "inputs": [
+      {"name": "user", "type": "address"},
+      {"name": "collateral", "type": "address"}
+    ],
+    "outputs": [
+      {"name": "collateralAmount", "type": "uint256"},
+      {"name": "mintedAmount", "type": "uint256"},
+      {"name": "collateralValue", "type": "uint256"},
+      {"name": "collateralRatio", "type": "uint256"},
+      {"name": "isLiquidatable", "type": "bool"},
+      {"name": "lastUpdateTime", "type": "uint256"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserMintStatus",
+    "inputs": [{"name": "user", "type": "address"}],
+    "outputs": [
+      {"name": "dailyMinted", "type": "uint256"},
+      {"name": "remainingDaily", "type": "uint256"},
+      {"name": "lastMintTime", "type": "uint256"},
+      {"name": "cooldownRemaining", "type": "uint256"},
+      {"name": "dailyMintCount", "type": "uint256"},
+      {"name": "remainingMints", "type": "uint256"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getVaultStatus",
+    "inputs": [],
+    "outputs": [
+      {"name": "totalMinted", "type": "uint256"},
+      {"name": "dailyMinted", "type": "uint256"},
+      {"name": "globalDailyRemaining", "type": "uint256"},
+      {"name": "autoMintActive", "type": "bool"},
+      {"name": "contractPaused", "type": "bool"},
+      {"name": "totalCollateralTypes", "type": "uint256"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getAllCollateralTokens",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "address[]"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "collateralConfigs",
+    "inputs": [{"name": "", "type": "address"}],
+    "outputs": [
+      {"name": "enabled", "type": "bool"},
+      {"name": "price", "type": "uint128"},
+      {"name": "lastPriceUpdate", "type": "uint64"},
+      {"name": "maxLTV", "type": "uint32"},
+      {"name": "liquidationBonus", "type": "uint32"},
+      {"name": "decimals", "type": "uint8"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "userPositions",
+    "inputs": [
+      {"name": "", "type": "address"},
+      {"name": "", "type": "address"}
+    ],
+    "outputs": [
+      {"name": "collateralAmount", "type": "uint256"},
+      {"name": "mintedAmount", "type": "uint256"},
+      {"name": "lastUpdateTime", "type": "uint32"},
+      {"name": "positionId", "type": "uint32"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tghsxToken",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "address"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "wrappedNativeToken",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "address"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "totalMintedGlobal",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "uint256"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "autoMintEnabled",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "bool"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "updateAutoMintConfig",
+    "inputs": [
+      {"name": "baseReward", "type": "uint64"},
+      {"name": "bonusMultiplier", "type": "uint64"},
+      {"name": "minHoldTime", "type": "uint32"},
+      {"name": "collateralRequirement", "type": "uint32"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "toggleAutoMint",
+    "inputs": [{"name": "enabled", "type": "bool"}],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "emergencyPause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "emergencyUnpause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "emergencyResetUserLimits",
+    "inputs": [{"name": "user", "type": "address"}],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "emergencyResetGlobalLimits",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "CollateralDeposited",
+    "inputs": [
+      {"name": "user", "type": "address", "indexed": true},
+      {"name": "collateral", "type": "address", "indexed": true},
+      {"name": "amount", "type": "uint256", "indexed": false}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "CollateralWithdrawn",
+    "inputs": [
+      {"name": "user", "type": "address", "indexed": true},
+      {"name": "collateral", "type": "address", "indexed": true},
+      {"name": "amount", "type": "uint256", "indexed": false}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "TokensMinted",
+    "inputs": [
+      {"name": "user", "type": "address", "indexed": true},
+      {"name": "collateral", "type": "address", "indexed": true},
+      {"name": "amount", "type": "uint256", "indexed": false}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "TokensBurned",
+    "inputs": [
+      {"name": "user", "type": "address", "indexed": true},
+      {"name": "collateral", "type": "address", "indexed": true},
+      {"name": "amount", "type": "uint256", "indexed": false}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "AutoMintExecuted",
+    "inputs": [
+      {"name": "user", "type": "address", "indexed": true},
+      {"name": "amount", "type": "uint256", "indexed": false},
+      {"name": "bonus", "type": "uint256", "indexed": false}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "PositionLiquidated",
+    "inputs": [
+      {"name": "user", "type": "address", "indexed": true},
+      {"name": "collateral", "type": "address", "indexed": true},
+      {"name": "collateralAmount", "type": "uint256", "indexed": false},
+      {"name": "debtAmount", "type": "uint256", "indexed": false}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "CollateralConfigUpdated",
+    "inputs": [
+      {"name": "collateral", "type": "address", "indexed": true},
+      {"name": "price", "type": "uint128", "indexed": false},
+      {"name": "maxLTV", "type": "uint32", "indexed": false},
+      {"name": "decimals", "type": "uint8", "indexed": false}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "PriceUpdated",
+    "inputs": [
+      {"name": "collateral", "type": "address", "indexed": true},
+      {"name": "oldPrice", "type": "uint128", "indexed": false},
+      {"name": "newPrice", "type": "uint128", "indexed": false}
+    ]
+  },
+  {
+    "type": "event",
+    "name": "AntiAbuseTriggered",
+    "inputs": [
+      {"name": "user", "type": "address", "indexed": true},
+      {"name": "reason", "type": "string", "indexed": false}
+    ]
+  },
+  {
+    "type": "error",
+    "name": "CollateralNotEnabled",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InsufficientCollateral",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BelowMinimumRatio",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotLiquidatable",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PriceStale",
+    "inputs": []
+  }
+]
