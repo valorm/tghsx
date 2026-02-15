@@ -77,7 +77,7 @@ export class ContractService {
   async getTokenBalance(userAddress: string, type: CollateralType) {
     if (!this.provider) return 0;
     try {
-      if (type === CollateralType.WETH) {
+      if (type === CollateralType.WMATIC) {
         const balance = await this.provider.getBalance(userAddress);
         return parseFloat(ethers.formatEther(balance));
       }
@@ -120,10 +120,10 @@ export class ContractService {
       this.signer
     );
 
-    const wrappedNativeToken = '0x13c09eAa18d75947A5426CaeDdEb65922400028c';
+    const wrappedNativeToken = COLLATERAL_ADDRESSES[CollateralType.WMATIC];
     const tokenAddress = COLLATERAL_ADDRESSES[type];
 
-    if (tokenAddress.toLowerCase() === wrappedNativeToken.toLowerCase()) {
+    if (type === CollateralType.WMATIC || tokenAddress.toLowerCase() === wrappedNativeToken.toLowerCase()) {
       const tx = await vault.depositNativeCollateral({
         value: ethers.parseEther(amount.toString())
       });
@@ -147,7 +147,7 @@ export class ContractService {
       this.signer
     );
 
-    if (type === CollateralType.WETH) {
+    if (type === CollateralType.WMATIC) {
       const tx = await vault.withdrawNativeCollateral(ethers.parseEther(amount.toString()));
       return await tx.wait();
     }

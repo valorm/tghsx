@@ -37,7 +37,7 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
     if (!Number.isFinite(val) || val <= 0) return "Transaction amount must be positive.";
 
     if (operation === 'deposit' && val > balances[selectedAsset]) {
-      return `Insufficient ${selectedAsset === CollateralType.WETH ? 'POL' : selectedAsset} wallet balance for this deposit.`;
+      return `Insufficient ${selectedAsset === CollateralType.WMATIC ? 'POL' : selectedAsset} wallet balance for this deposit.`;
     }
 
     if (operation === 'withdraw' && val > (currentPos?.depositedAmount || 0)) {
@@ -249,7 +249,7 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
               ))}
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {Object.values(CollateralType).map(type => (
                 <button
                   key={type}
@@ -279,7 +279,7 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
                 />
                 <div className="absolute right-8 top-1/2 -translate-y-1/2 flex items-center gap-4">
                    <button onClick={handleMax} className="text-[10px] font-black uppercase bg-indigo-600/20 text-indigo-400 px-4 py-2 rounded-xl border border-indigo-500/20 hover:bg-indigo-600/30 transition-colors">MAX</button>
-                   <span className="text-xs font-black text-slate-700 uppercase tracking-widest">{action === 'burn' || action === 'mint' ? 'tGHSX' : (selectedAsset === CollateralType.WETH ? 'POL' : selectedAsset)}</span>
+                   <span className="text-xs font-black text-slate-700 uppercase tracking-widest">{action === 'burn' || action === 'mint' ? 'tGHSX' : (selectedAsset === CollateralType.WMATIC ? 'POL' : selectedAsset)}</span>
                 </div>
               </div>
             </div>
