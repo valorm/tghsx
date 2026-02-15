@@ -39,7 +39,27 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, account, isS
   ] as const;
 
   return (
-    <aside className="hidden lg:flex flex-col w-64 glass-morphism border-r border-white/5 p-6 h-screen relative z-30">
+    <>
+      <div className="lg:hidden sticky top-0 z-40 bg-[#020617]/95 backdrop-blur border-b border-white/10 px-3 py-3">
+        <div className="grid grid-cols-4 gap-2">
+          {navItems.map((item) => (
+            <button
+              key={`mobile-${item.id}`}
+              onClick={() => setActiveTab(item.id)}
+              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2 border transition-all ${
+                activeTab === item.id
+                  ? 'bg-indigo-600/15 text-white border-indigo-500/30'
+                  : 'bg-white/5 text-slate-400 border-white/10'
+              }`}
+            >
+              <span className={activeTab === item.id ? 'text-indigo-400' : 'text-slate-500'}>{item.icon}</span>
+              <span className="text-[9px] font-black uppercase tracking-wide">{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <aside className="hidden lg:flex flex-col w-64 glass-morphism border-r border-white/5 p-6 h-screen relative z-30">
       <button 
         onClick={onGoHome}
         className="mb-12 px-2 flex items-center gap-3 group hover:opacity-80 transition-opacity text-left"
@@ -91,6 +111,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, account, isS
         )}
       </div>
     </aside>
+    </>
   );
 };
 

@@ -27,6 +27,12 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
   const currentPos = positions.find(p => p.collateralType === selectedAsset);
   const price = prices[selectedAsset];
 
+  useEffect(() => {
+    if (txStatus !== 'confirmed' && txStatus !== 'failed') return;
+    const timeout = window.setTimeout(() => setTxStatus('idle'), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [txStatus]);
+
   const handleTransaction = async () => {
     if (!account || txStatus === 'pending' || txStatus === 'approving') return;
     
@@ -210,16 +216,22 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
             </div>
 
             <div className="space-y-4">
-              <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">
+              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">
                 <span>Transaction Value</span>
-                <span className="font-mono text-indigo-400">{action === 'withdraw' ? `Max: ${currentPos?.depositedAmount.toFixed(4)}` : action === 'burn' ? `Max: ${currentPos?.mintedDebt.toFixed(2)}` : `Bal: ${balances[selectedAsset].toFixed(4)}`}</span>
+                <span className="font-mono text-indigo-300 text-[11px] tracking-normal">
+                  {action === 'withdraw'
+                    ? `Max Withdrawal: ${currentPos?.depositedAmount.toFixed(4) || '0.0000'} ${selectedAsset}`
+                    : action === 'burn'
+                      ? `Max Burn: ${currentPos?.mintedDebt.toFixed(2) || '0.00'} tGHSX`
+                      : `Your Balance: ${balances[selectedAsset].toFixed(4)} ${selectedAsset}`}
+                </span>
               </div>
               <div className="relative group">
                 <input
                   type="number"
                   value={action === 'burn' || action === 'mint' ? mintAmount : amount}
                   onChange={(e) => action === 'burn' || action === 'mint' ? setMintAmount(e.target.value) : setAmount(e.target.value)}
-                  placeholder="0.0000"
+                  placeholder={action === 'burn' || action === 'mint' ? '0.0 tGHSX' : `0.0 ${selectedAsset}`}
                   className="w-full bg-slate-950 border border-white/10 rounded-3xl px-8 py-7 text-3xl font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all placeholder:text-slate-800"
                 />
                 <div className="absolute right-8 top-1/2 -translate-y-1/2 flex items-center gap-4">
@@ -259,6 +271,13 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
                    </div>
                 </div>
                 <div className="flex-1 min-w-0">
+                  <button
+                    onClick={() => setTxStatus('idle')}
+                    className="float-right -mt-1 text-xs text-current/80 hover:text-white font-black"
+                    aria-label="Close status message"
+                  >
+                    ✕
+                  </button>
                   <h5 className="text-[11px] font-black uppercase tracking-[0.2em] leading-none mb-2">
                     {txStatus === 'confirmed' ? 'PROTOCOL COMMITMENT VERIFIED' : 'TRANSACTION REJECTED'}
                   </h5>
