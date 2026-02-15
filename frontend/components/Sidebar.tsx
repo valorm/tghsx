@@ -9,9 +9,11 @@ interface SidebarProps {
   isSyncing: boolean;
   lastSync: number;
   onGoHome: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, account, isSyncing, lastSync, onGoHome }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, account, isSyncing, lastSync, onGoHome, isOpen, onClose }) => {
   const [gas, setGas] = useState(25);
   const [block, setBlock] = useState(12840592);
 
@@ -39,7 +41,19 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, account, isS
   ] as const;
 
   return (
-    <aside className="hidden lg:flex flex-col w-64 glass-morphism border-r border-white/5 p-6 h-screen relative z-30">
+    <>
+      <div
+        className={`lg:hidden fixed inset-0 bg-black/60 z-40 transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={onClose}
+      />
+
+      <aside className={`fixed lg:static top-0 left-0 h-screen w-64 glass-morphism border-r border-white/5 p-6 z-50 flex flex-col transform transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <button
+        onClick={onClose}
+        className="lg:hidden self-end mb-4 text-slate-400 hover:text-white text-xs font-black uppercase tracking-[0.2em]"
+      >
+        Close ✕
+      </button>
       <button 
         onClick={onGoHome}
         className="mb-12 px-2 flex items-center gap-3 group hover:opacity-80 transition-opacity text-left"
@@ -56,7 +70,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, account, isS
         {navItems.map((item) => (
           <button
             key={item.id}
-            onClick={() => setActiveTab(item.id)}
+            onClick={() => {
+              setActiveTab(item.id);
+              onClose();
+            }}
             className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all relative ${
               activeTab === item.id
                 ? 'bg-indigo-600/10 text-white border border-indigo-500/20 tab-active'
@@ -91,6 +108,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, account, isS
         )}
       </div>
     </aside>
+    </>
   );
 };
 
