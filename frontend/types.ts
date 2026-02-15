@@ -2,7 +2,8 @@
 export enum CollateralType {
   WETH = 'WETH',
   WBTC = 'WBTC',
-  USDC = 'USDC'
+  USDC = 'USDC',
+  WMATIC = 'WMATIC'
 }
 
 export interface UserPosition {

@@ -16,7 +16,8 @@ export const fetchLivePrices = async (): Promise<Record<CollateralType, number>>
     return {
       [CollateralType.WETH]: data['ethereum']?.ghs || INITIAL_PRICES[CollateralType.WETH],
       [CollateralType.WBTC]: data['wrapped-bitcoin']?.ghs || INITIAL_PRICES[CollateralType.WBTC],
-      [CollateralType.USDC]: data['usd-coin']?.ghs || INITIAL_PRICES[CollateralType.USDC]
+      [CollateralType.USDC]: data['usd-coin']?.ghs || INITIAL_PRICES[CollateralType.USDC],
+      [CollateralType.WMATIC]: data['matic-network']?.ghs || INITIAL_PRICES[CollateralType.WMATIC]
     };
   } catch (error) {
     console.warn('Failed to fetch live prices, using initial values:', error);

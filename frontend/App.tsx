@@ -31,7 +31,8 @@ const App: React.FC = () => {
   const [balances, setBalances] = useState<Record<CollateralType, number>>({
     [CollateralType.WETH]: 0,
     [CollateralType.WBTC]: 0,
-    [CollateralType.USDC]: 0
+    [CollateralType.USDC]: 0,
+    [CollateralType.WMATIC]: 0
   });
   const [prices, setPrices] = useState<Record<CollateralType, number>>(INITIAL_PRICES);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -86,7 +87,7 @@ const App: React.FC = () => {
         setBalances(updatedBalances as Record<CollateralType, number>);
       } else {
         setPositions([]);
-        setBalances({ [CollateralType.WETH]: 0, [CollateralType.WBTC]: 0, [CollateralType.USDC]: 0 });
+        setBalances({ [CollateralType.WETH]: 0, [CollateralType.WBTC]: 0, [CollateralType.USDC]: 0, [CollateralType.WMATIC]: 0 });
       }
 
       setProtocolStats({
