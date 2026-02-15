@@ -64,6 +64,10 @@ class CollateralActionRequest(BaseModel):
             raise ValueError("Invalid Ethereum address")
         return Web3.to_checksum_address(v)
 
+
+class MintActionPayload(BaseModel):
+    request_id: str
+
 # --- Admin Endpoints ---
 
 @router.get(
@@ -85,6 +89,57 @@ async def get_all_pending_requests(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch pending mint requests: {str(e)}"
+        )
+
+
+
+@router.post(
+    "/approve-mint",
+    response_model=Dict[str, str],
+    dependencies=[Depends(is_admin_user)]
+)
+async def approve_mint_request(
+    payload: MintActionPayload,
+    supabase=Depends(get_supabase_admin_client)
+):
+    """Approve a pending mint request by updating its status in the database."""
+    try:
+        (
+            supabase.table("mint_requests")
+            .update({"status": "approved"})
+            .eq("id", payload.request_id)
+            .execute()
+        )
+        return {"message": f"Mint request {payload.request_id} has been approved."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to approve mint request: {str(e)}"
+        )
+
+
+@router.post(
+    "/decline-mint",
+    response_model=Dict[str, str],
+    dependencies=[Depends(is_admin_user)]
+)
+async def decline_mint_request(
+    payload: MintActionPayload,
+    supabase=Depends(get_supabase_admin_client)
+):
+    """Decline a pending mint request by updating its status in the database."""
+    try:
+        (
+            supabase.table("mint_requests")
+            .update({"status": "declined"})
+            .eq("id", payload.request_id)
+            .execute()
+        )
+        return {"message": f"Mint request {payload.request_id} has been declined."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to decline mint request: {str(e)}"
         )
 
 @router.get(

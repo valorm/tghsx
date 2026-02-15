@@ -7,10 +7,10 @@ from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
 
 # Import all application routers
-from routes import auth, oracle, vault, mint, transactions, protocol, admin, admin_actions, liquidations, health, collateral
+from routes import auth, oracle, vault, mint, transactions, protocol, admin, liquidations, health, collateral, ai
 
 # Import the background task
-from task import sync_user_vaults
+from tasks import sync_user_vaults
 
 # --- Initialize FastAPI App ---
 app = FastAPI(
@@ -48,7 +48,6 @@ app.add_middleware(
 # --- API Routers ---
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
-app.include_router(admin_actions.router, prefix="/admin/actions", tags=["Admin Actions"])
 app.include_router(mint.router, prefix="/mint", tags=["Minting"])
 app.include_router(vault.router, prefix="/vault", tags=["User Vault"])
 app.include_router(liquidations.router, prefix="/liquidations", tags=["Liquidations"])
@@ -58,6 +57,7 @@ app.include_router(protocol.router, prefix="/protocol", tags=["Protocol Health"]
 app.include_router(collateral.router, prefix="", tags=["Collaterals"])
 app.include_router(transactions.router, prefix="/transactions", tags=["Transaction History"])
 app.include_router(health.router, prefix="/health", tags=["Health Checks"])
+app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
 
 # --- Root Endpoint ---
 @app.get("/", tags=["Root"])
