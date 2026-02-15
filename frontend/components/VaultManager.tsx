@@ -27,6 +27,55 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
   const currentPos = positions.find(p => p.collateralType === selectedAsset);
   const price = prices[selectedAsset];
 
+  const getValidationError = (operation: typeof action, val: number): string | null => {
+    if (!Number.isFinite(val) || val <= 0) return "Transaction amount must be positive.";
+
+    if (operation === 'deposit' && val > balances[selectedAsset]) {
+      return `Insufficient ${selectedAsset} wallet balance for this deposit.`;
+    }
+
+    if (operation === 'withdraw' && val > (currentPos?.depositedAmount || 0)) {
+      return `Withdrawal exceeds your deposited ${selectedAsset} collateral.`;
+    }
+
+    if (operation === 'burn' && val > (currentPos?.mintedDebt || 0)) {
+      return 'Burn amount exceeds your outstanding tGHSX debt.';
+    }
+
+    if (operation === 'mint') {
+      const maxMint = currentPos
+        ? (currentPos.depositedAmount * price / (SYSTEM_PARAMS.MIN_COLLATERAL_RATIO / 100)) - currentPos.mintedDebt
+        : 0;
+
+      if (val > Math.max(0, maxMint)) {
+        return 'Mint amount exceeds your safe collateralized limit.';
+      }
+    }
+
+    return null;
+  };
+
+  const formatContractError = (err: any): string => {
+    const raw = err?.reason || err?.data?.message || err?.message || "Protocol Transaction Error.";
+    const lower = String(raw).toLowerCase();
+
+    if (lower.includes('user rejected')) return 'Transaction signature declined by user.';
+    if (lower.includes('insufficient funds')) return 'Wallet has insufficient native token for gas.';
+    if (lower.includes('insufficientcollateral')) return 'Insufficient collateral for this action.';
+    if (lower.includes('belowminimumratio')) return 'Action would violate minimum collateral ratio.';
+    if (lower.includes('positionnotfound')) return 'No active position found for this collateral.';
+    if (lower.includes('invalidamount')) return 'Amount is below protocol minimum or invalid.';
+    if (lower.includes('exceedsmaxmint')) return 'Mint amount exceeds protocol max per transaction.';
+    if (lower.includes('exceedsdailylimit') || lower.includes('exceedsgloballimit')) return 'Minting limit reached. Try again later.';
+    if (lower.includes('cooldownnotmet')) return 'Mint cooldown is active. Please wait before minting again.';
+    if (lower.includes('pricestale')) return 'Oracle price is stale. Please retry after refresh.';
+    if (lower.includes('erc20insufficientbalance') || lower.includes('0xe450d38c')) return 'Insufficient token balance for this transaction.';
+    if (lower.includes('erc20insufficientallowance') || lower.includes('0xfb8f41b2')) return 'Token allowance is too low. Approve and retry.';
+    if (lower.includes('unknown custom error')) return 'Transaction reverted by contract rules. Check balance, allowance, and collateral limits.';
+
+    return raw;
+  };
+
   const handleTransaction = async () => {
     if (!account || txStatus === 'pending' || txStatus === 'approving') return;
     
@@ -36,8 +85,9 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
     
     try {
       const val = action === 'burn' || action === 'mint' ? parseFloat(mintAmount) : parseFloat(amount);
-      if (isNaN(val) || val <= 0) {
-        setLocalError("Transaction amount must be positive.");
+      const validationError = getValidationError(action, val);
+      if (validationError) {
+        setLocalError(validationError);
         setTxStatus('failed');
         return;
       }
@@ -69,8 +119,7 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
     } catch (err: any) {
       console.error("Vault Action Fault:", err);
       setTxStatus('failed');
-      const msg = err?.reason || err?.data?.message || err?.message || "Protocol Transaction Error.";
-      setLocalError(msg.includes("user rejected") ? "Transaction signature declined by user." : msg);
+      setLocalError(formatContractError(err));
     }
   };
 
