@@ -7,9 +7,9 @@ export const PROTOCOL_ADDRESSES = {
 };
 
 export const COLLATERAL_ADDRESSES = {
-  [CollateralType.WETH]: '0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9', 
-  [CollateralType.WBTC]: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f',
-  [CollateralType.USDC]: '0x41e944041d507c2a1329E28Ef09d5a78ccB98444'
+  [CollateralType.WETH]: import.meta.env.VITE_WETH_ADDRESS,
+  [CollateralType.WBTC]: import.meta.env.VITE_WBTC_ADDRESS,
+  [CollateralType.USDC]: import.meta.env.VITE_USDC_ADDRESS
 };
 
 export const COINGECKO_IDS = {

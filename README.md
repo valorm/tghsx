@@ -134,3 +134,23 @@ Discord: [https://discord.com/invite/NPtrctnJhu](https://discord.com/invite/NPtr
 ---
 
 *Built for decentralized liquidity in Ghana.*
+
+## 5. Environment Configuration
+
+Set sensitive AI credentials on the backend only, and keep frontend settings limited to public addresses.
+
+### Backend (`backend/.env`)
+
+- `GEMINI_API_KEY=...`
+- `COLLATERAL_VAULT_ADDRESS=...`
+- Other existing backend secrets (RPC URLs, Supabase keys, admin keys)
+
+### Frontend (`frontend/.env`)
+
+- `VITE_TGHSX_TOKEN_ADDRESS=...`
+- `VITE_COLLATERAL_VAULT_ADDRESS=...`
+- `VITE_WETH_ADDRESS=...`
+- `VITE_WBTC_ADDRESS=...`
+- `VITE_USDC_ADDRESS=...`
+
+Do **not** place `GEMINI_API_KEY` or any other private API keys in frontend environment files.
