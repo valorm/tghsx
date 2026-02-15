@@ -7,7 +7,7 @@ from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
 
 # Import all application routers
-from routes import auth, oracle, vault, mint, transactions, protocol, admin, liquidations, health, collateral
+from routes import auth, oracle, vault, mint, transactions, protocol, admin, admin_actions, liquidations, health, collateral
 
 # Import the background task
 from task import sync_user_vaults
@@ -34,6 +34,7 @@ origins = [
     "http://localhost",
     "http://localhost:8080",
     "http://localhost:3000",
+    "http://localhost:5173",
     "http://127.0.0.1:5500" 
 ]
 app.add_middleware(
@@ -47,6 +48,7 @@ app.add_middleware(
 # --- API Routers ---
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+app.include_router(admin_actions.router, prefix="/admin/actions", tags=["Admin Actions"])
 app.include_router(mint.router, prefix="/mint", tags=["Minting"])
 app.include_router(vault.router, prefix="/vault", tags=["User Vault"])
 app.include_router(liquidations.router, prefix="/liquidations", tags=["Liquidations"])
