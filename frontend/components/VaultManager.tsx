@@ -24,6 +24,12 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
   const [localError, setLocalError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (txStatus !== 'failed') return;
+    const timeout = window.setTimeout(() => setTxStatus('idle'), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [txStatus]);
+
   const currentPos = positions.find(p => p.collateralType === selectedAsset);
   const price = prices[selectedAsset];
 
@@ -261,14 +267,14 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
             <div className="space-y-4">
               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">
                 <span>Transaction Value</span>
-                <span className="font-mono text-indigo-400">{action === 'withdraw' ? `Max: ${currentPos?.depositedAmount.toFixed(4)}` : action === 'burn' ? `Max: ${currentPos?.mintedDebt.toFixed(2)}` : `Bal: ${balances[selectedAsset].toFixed(4)}`}</span>
+                <span className="font-mono text-indigo-300 text-[11px]">{action === 'withdraw' ? `Max: ${currentPos?.depositedAmount.toFixed(4)}` : action === 'burn' ? `Max: ${currentPos?.mintedDebt.toFixed(2)}` : `Your Balance: ${balances[selectedAsset].toFixed(4)} ${selectedAsset}`}</span>
               </div>
               <div className="relative group">
                 <input
                   type="number"
                   value={action === 'burn' || action === 'mint' ? mintAmount : amount}
                   onChange={(e) => action === 'burn' || action === 'mint' ? setMintAmount(e.target.value) : setAmount(e.target.value)}
-                  placeholder="0.0000"
+                  placeholder={action === 'burn' || action === 'mint' ? 'Enter amount...' : `0.0 ${selectedAsset}`}
                   className="w-full bg-slate-950 border border-white/10 rounded-3xl px-8 py-7 text-3xl font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all placeholder:text-slate-800"
                 />
                 <div className="absolute right-8 top-1/2 -translate-y-1/2 flex items-center gap-4">
@@ -314,7 +320,21 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
                   <p className="text-[9px] font-bold opacity-80 uppercase tracking-tighter leading-relaxed">
                      {txStatus === 'confirmed' ? 'Registry metrics have been updated on the Polygon ledger. Dashboard telemetry is syncing.' : (localError || 'The network rejected the transaction. Verify gas levels and system limits.')}
                   </p>
-                  <button onClick={() => setTxStatus('idle')} className="mt-4 text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2.5 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">Acknowledge</button>
+                  <div className="mt-4 flex items-center gap-2">
+                    <button
+                      onClick={() => setTxStatus('idle')}
+                      className="text-[9px] font-black uppercase tracking-[0.2em] px-5 py-2.5 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors"
+                    >
+                      Acknowledge
+                    </button>
+                    <button
+                      onClick={() => setTxStatus('idle')}
+                      aria-label="Close transaction status"
+                      className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-black"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
