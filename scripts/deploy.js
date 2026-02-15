@@ -39,7 +39,7 @@ async function main() {
     // --- 2. DEPLOY COLLATERAL VAULT ---
     console.log("\n📄 2. Deploying CollateralVault...");
     const CollateralVault = await ethers.getContractFactory("CollateralVault");
-    const collateralVault = await CollateralVault.deploy(tghsxToken.address);
+    const collateralVault = await CollateralVault.deploy(tghsxToken.address, mockTokens.WMATIC);
     await collateralVault.deployTransaction.wait(AMOY_CONFIG.confirmations);
     console.log("✅ CollateralVault deployed to:", collateralVault.address);
 
