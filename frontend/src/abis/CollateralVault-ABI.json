@@ -13,9 +13,9 @@
   },
   {
     "type": "function",
-    "name": "depositCollateral",
+    "name": "depositERC20Collateral",
     "inputs": [
-      {"name": "collateral", "type": "address"},
+      {"name": "token", "type": "address"},
       {"name": "amount", "type": "uint256"}
     ],
     "outputs": [],
