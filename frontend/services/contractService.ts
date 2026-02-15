@@ -1,8 +1,8 @@
 import { ethers } from 'ethers';
 import { PROTOCOL_ADDRESSES, COLLATERAL_ADDRESSES } from '../constants';
 import { CollateralType } from '../types';
-import TGHSXTokenABI from '../abis/TGHSXToken-ABI.json';
-import CollateralVaultABI from '../abis/CollateralVault-ABI.json';
+import TGHSXTokenABI from '../src/abis/TGHSXToken-ABI.json';
+import CollateralVaultABI from '../src/abis/CollateralVault-ABI.json';
 
 // Standard ERC20 ABI (minimal)
 const ERC20_ABI = [
@@ -119,14 +119,20 @@ export class ContractService {
       this.signer
     );
 
-    if (type === CollateralType.WETH) {
+    const wrappedNativeToken = '0x13c09eAa18d75947A5426CaeDdEb65922400028c';
+    const selectedToken = COLLATERAL_ADDRESSES[type];
+
+    if (selectedToken.toLowerCase() === wrappedNativeToken.toLowerCase()) {
       const tx = await vault.depositNativeCollateral({ value: ethers.parseEther(amount.toString()) });
       return await tx.wait();
     }
 
-    const assetAddress = COLLATERAL_ADDRESSES[type];
+    const token = new ethers.Contract(selectedToken, ERC20_ABI, this.signer);
     const decimals = type === CollateralType.USDC ? 6 : 18;
-    const tx = await vault.depositCollateral(assetAddress, ethers.parseUnits(amount.toString(), decimals));
+    const parsedAmount = ethers.parseUnits(amount.toString(), decimals);
+    await (await token.approve(PROTOCOL_ADDRESSES.COLLATERAL_VAULT, parsedAmount)).wait();
+
+    const tx = await vault.depositERC20Collateral(selectedToken, parsedAmount);
     return await tx.wait();
   }
 

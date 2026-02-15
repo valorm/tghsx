@@ -98,7 +98,7 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
         return;
       }
 
-      if ((action === 'deposit' && selectedAsset !== CollateralType.WETH) || action === 'burn') {
+      if (action === 'burn') {
         setTxStatus('approving');
         const allowance = await contractService.getAllowance(account, selectedAsset, action === 'burn');
         const required = ethers.parseUnits(val.toString(), action === 'burn' ? SYSTEM_PARAMS.TGHSX_DECIMALS : 18);
