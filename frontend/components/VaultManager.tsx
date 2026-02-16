@@ -77,6 +77,8 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
     if (lower.includes('pricestale')) return 'Oracle price is stale. Please retry after refresh.';
     if (lower.includes('erc20insufficientbalance') || lower.includes('0xe450d38c')) return 'Insufficient token balance for this transaction.';
     if (lower.includes('erc20insufficientallowance') || lower.includes('0xfb8f41b2')) return 'Token allowance is too low. Approve and retry.';
+    if (lower.includes('not authorized as collateral')) return 'Selected collateral is not enabled in the vault yet. Ask an admin to run addCollateral().';
+    if (lower.includes('vault is paused')) return 'Vault is currently paused by protocol admin. Deposits are disabled until unpaused.';
     if (lower.includes('unknown custom error')) return 'Transaction reverted by contract rules. Check balance, allowance, and collateral limits.';
 
     return raw;

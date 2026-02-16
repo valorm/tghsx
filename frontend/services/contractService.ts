@@ -123,6 +123,14 @@ export class ContractService {
     const wrappedNativeToken = COLLATERAL_ADDRESSES[CollateralType.WMATIC];
     const tokenAddress = COLLATERAL_ADDRESSES[type];
 
+    const diagnostics = await this.debugDeposit(type);
+    if (diagnostics.isPaused) {
+      throw new Error("Vault is paused. Deposits are temporarily disabled by the protocol admin.");
+    }
+    if (!diagnostics.isAuthorized) {
+      throw new Error(`${type} is not authorized as collateral in the vault yet. Ask an admin to call addCollateral() first.`);
+    }
+
     if (type === CollateralType.WMATIC || tokenAddress.toLowerCase() === wrappedNativeToken.toLowerCase()) {
       const tx = await vault.depositNativeCollateral({
         value: ethers.parseEther(amount.toString())
@@ -137,6 +145,44 @@ export class ContractService {
 
     const tx = await vault.depositCollateral(tokenAddress, parsedAmount);
     return await tx.wait();
+  }
+
+  async debugDeposit(type: CollateralType) {
+    if (!this.provider) {
+      return {
+        tokenAddress: COLLATERAL_ADDRESSES[type],
+        isAuthorized: false,
+        isPaused: false,
+        allAuthorizedTokens: [] as string[]
+      };
+    }
+
+    const vault = new ethers.Contract(
+      PROTOCOL_ADDRESSES.COLLATERAL_VAULT,
+      CollateralVaultABI,
+      this.provider
+    );
+
+    const tokenAddress = COLLATERAL_ADDRESSES[type];
+    const [isAuthorized, isPaused, allAuthorizedTokens] = await Promise.all([
+      vault.authorizedCollaterals(tokenAddress),
+      vault.paused(),
+      vault.getAllCollateralTokens()
+    ]);
+
+    const diagnostics = {
+      tokenAddress,
+      isAuthorized,
+      isPaused,
+      allAuthorizedTokens: allAuthorizedTokens.map((token: string) => token.toLowerCase())
+    };
+
+    console.log("=== DEPOSIT DEBUG ===", {
+      token: type,
+      ...diagnostics
+    });
+
+    return diagnostics;
   }
 
   async withdraw(type: CollateralType, amount: number) {
