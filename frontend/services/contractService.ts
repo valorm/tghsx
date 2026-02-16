@@ -298,7 +298,8 @@ export class ContractService {
         from: fromAddress
       });
 
-      this.nativeWrapSupport = true;
+      const hasNativeDeposit = vault.interface.hasFunction('depositNativeCollateral');
+      this.nativeWrapSupport = hasNativeDeposit;
     } catch {
       this.nativeWrapSupport = false;
     }
