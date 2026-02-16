@@ -12,9 +12,15 @@ const ERC20_ABI = [
   "function decimals() public view returns (uint8)"
 ];
 
+const WRAPPED_NATIVE_ABI = [
+  "function deposit() external payable",
+  "function withdraw(uint256 amount) external"
+];
+
 export class ContractService {
   private provider: ethers.BrowserProvider | null = null;
   private signer: ethers.JsonRpcSigner | null = null;
+  private nativeWrapSupport: boolean | null = null;
 
   constructor() {
     this.initProvider();
@@ -78,8 +84,11 @@ export class ContractService {
     if (!this.provider) return 0;
     try {
       if (type === CollateralType.WMATIC) {
-        const balance = await this.provider.getBalance(userAddress);
-        return parseFloat(ethers.formatEther(balance));
+        const supportsNativeWrap = await this.supportsNativeWrappedFlow(userAddress);
+        if (supportsNativeWrap) {
+          const balance = await this.provider.getBalance(userAddress);
+          return parseFloat(ethers.formatEther(balance));
+        }
       }
 
       const assetAddress = COLLATERAL_ADDRESSES[type];
@@ -131,7 +140,11 @@ export class ContractService {
       throw new Error(`${type} is not authorized as collateral in the vault yet. Ask an admin to call addCollateral() first.`);
     }
 
-    if (type === CollateralType.WMATIC || tokenAddress.toLowerCase() === wrappedNativeToken.toLowerCase()) {
+    const canUseNativeRoute =
+      (type === CollateralType.WMATIC || tokenAddress.toLowerCase() === wrappedNativeToken.toLowerCase())
+      && await this.supportsNativeWrappedFlow();
+
+    if (canUseNativeRoute) {
       const tx = await vault.depositNativeCollateral({
         value: ethers.parseEther(amount.toString())
       });
@@ -207,7 +220,10 @@ export class ContractService {
       this.signer
     );
 
-    if (type === CollateralType.WMATIC) {
+    const canUseNativeRoute =
+      type === CollateralType.WMATIC && await this.supportsNativeWrappedFlow();
+
+    if (canUseNativeRoute) {
       const tx = await vault.withdrawNativeCollateral(ethers.parseEther(amount.toString()));
       return await tx.wait();
     }
@@ -252,6 +268,42 @@ export class ContractService {
     const assetAddress = COLLATERAL_ADDRESSES[type];
     const tx = await vault.liquidate(targetUser, assetAddress);
     return await tx.wait();
+  }
+
+  private async supportsNativeWrappedFlow(fromAddress?: string) {
+    if (this.nativeWrapSupport !== null) {
+      return this.nativeWrapSupport;
+    }
+
+    if (!this.provider) {
+      this.nativeWrapSupport = false;
+      return this.nativeWrapSupport;
+    }
+
+    try {
+      const vault = new ethers.Contract(
+        PROTOCOL_ADDRESSES.COLLATERAL_VAULT,
+        CollateralVaultABI,
+        this.provider
+      );
+
+      const wrappedTokenAddress = await vault.wrappedNativeToken();
+      const wrappedNative = new ethers.Contract(wrappedTokenAddress, WRAPPED_NATIVE_ABI, this.provider);
+      const probeCalldata = wrappedNative.interface.encodeFunctionData('deposit');
+
+      await this.provider.call({
+        to: wrappedTokenAddress,
+        data: probeCalldata,
+        value: 1n,
+        from: fromAddress
+      });
+
+      this.nativeWrapSupport = true;
+    } catch {
+      this.nativeWrapSupport = false;
+    }
+
+    return this.nativeWrapSupport;
   }
 }
 
