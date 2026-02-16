@@ -23,6 +23,26 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
   const [txStatus, setTxStatus] = useState<'idle' | 'approving' | 'pending' | 'confirmed' | 'failed'>('idle');
   const [localError, setLocalError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [nativePolBalance, setNativePolBalance] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchNativePolBalance = async () => {
+      if (!account || typeof window === 'undefined' || !(window as any).ethereum) {
+        setNativePolBalance(0);
+        return;
+      }
+
+      try {
+        const provider = new ethers.BrowserProvider((window as any).ethereum);
+        const balance = await provider.getBalance(account);
+        setNativePolBalance(parseFloat(ethers.formatEther(balance)));
+      } catch {
+        setNativePolBalance(0);
+      }
+    };
+
+    fetchNativePolBalance();
+  }, [account, balances[CollateralType.WMATIC]]);
 
   useEffect(() => {
     if (txStatus !== 'failed') return;
@@ -36,8 +56,19 @@ const VaultManager: React.FC<VaultManagerProps> = ({ positions, prices, balances
   const getValidationError = (operation: typeof action, val: number): string | null => {
     if (!Number.isFinite(val) || val <= 0) return "Transaction amount must be positive.";
 
-    if (operation === 'deposit' && val > balances[selectedAsset]) {
-      return `Insufficient ${selectedAsset === CollateralType.WMATIC ? 'POL' : selectedAsset} wallet balance for this deposit.`;
+    if (operation === 'deposit') {
+      // For WMATIC deposits, allow using native POL balance
+      // since depositNativeCollateral() accepts native tokens
+      let availableBalance = balances[selectedAsset];
+
+      // WMATIC can use native POL if wrapped balance is insufficient
+      if (selectedAsset === CollateralType.WMATIC) {
+        availableBalance = Math.max(availableBalance, nativePolBalance);
+      }
+
+      if (val > availableBalance) {
+        return `Insufficient ${selectedAsset === CollateralType.WMATIC ? 'POL' : selectedAsset} wallet balance for this deposit.`;
+      }
     }
 
     if (operation === 'withdraw' && val > (currentPos?.depositedAmount || 0)) {
