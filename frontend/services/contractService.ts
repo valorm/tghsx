@@ -135,7 +135,7 @@ export class ContractService {
     const parsedAmount = ethers.parseUnits(amount.toString(), decimals);
     await (await tokenContract.approve(vaultAddress, parsedAmount)).wait();
 
-    const tx = await vault.depositERC20Collateral(tokenAddress, parsedAmount);
+    const tx = await vault.depositCollateral(tokenAddress, parsedAmount);
     return await tx.wait();
   }
 
