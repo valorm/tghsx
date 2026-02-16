@@ -164,9 +164,23 @@ export class ContractService {
     );
 
     const tokenAddress = COLLATERAL_ADDRESSES[type];
+
+    // Some deployments still use a legacy ABI that does not expose
+    // `authorizedCollaterals(address)` or inherited `paused()`.
+    // Fall back to available getters to keep deposit diagnostics working.
+    const isAuthorizedPromise =
+      typeof vault.authorizedCollaterals === 'function'
+        ? vault.authorizedCollaterals(tokenAddress)
+        : vault.collateralConfigs(tokenAddress).then((config: any) => Boolean(config.enabled));
+
+    const isPausedPromise =
+      typeof vault.paused === 'function'
+        ? vault.paused()
+        : Promise.resolve(false);
+
     const [isAuthorized, isPaused, allAuthorizedTokens] = await Promise.all([
-      vault.authorizedCollaterals(tokenAddress),
-      vault.paused(),
+      isAuthorizedPromise,
+      isPausedPromise,
       vault.getAllCollateralTokens()
     ]);
 
